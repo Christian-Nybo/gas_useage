@@ -15,49 +15,49 @@ from supadb.database import Sbase
 
 db = Sbase()
 
-def get_data():
+
+def get_all_data(table_name: str) -> pd.DataFrame:
     """
     Fetch data from the gas_reading_differences table.
+    This function retrieves all records and returns them as a DataFrame.
     """
 
     print("Fetching data from database...")
 
-    response = db.query("gas_reading_differences", "*")
+    response = db.query(table_name, "*")
 
     df = pd.DataFrame(response)
 
-    return df # Return the data as a DataFrame
+    return df
 
-def add_record_to_db(table_name, data):
+
+def get_seasons(df: pd.DataFrame) -> list[str]:
     """
-    Add a new record to the gas_reading_differences table.
+    Get unique seasons from the DataFrame.
     """
 
-    response = db.add_record(table_name, data)
-
-    if response:
-        print("Record added successfully.")
-    else:
-        print("Failed to add record.")
-
-def get_seasons(df):
     # Ensure df is a DataFrame
     if isinstance(df, list):
         df = pd.DataFrame(df)
     return df['season_name'].unique().tolist()
 
-def prep_dataframe(df, columns_to_drop=None):
+
+def prep_dataframe(df_original: pd.DataFrame, columns_to_drop: list[str] = None) -> pd.DataFrame:
+    """
+    Manipulate the DataFrame to prepare it for display.
+    """
+
+    df = df_original.copy()
 
     # Convert 'datetime' column to date type
     if 'datetime' in df.columns:
         df['datetime'] = pd.to_datetime(df['datetime']).dt.date
 
-    # Convert 'days' column to hours
-    # days are in string format: 5 days 02:45:00
+    # Convert 'days' column to hours (string format: 5 days 02:45:00)
     if 'days' in df.columns:
         df['hours'] = pd.to_timedelta(df['days']).dt.total_seconds() / 3600
 
-    # add a 'Gas_per_day' column - Dividing Gas_usage by days
+    # add a 'Gas_per_day' column
     if 'gas_usage' in df.columns and 'days' in df.columns:
         df['Gas_per_day'] = df['gas_usage'] / (df['hours'] / 24)
 
@@ -71,9 +71,11 @@ def prep_dataframe(df, columns_to_drop=None):
 
     return df
 
-def calculate_time_left_in_season(seasons):
+
+def calculate_time_left_in_season(seasons: str) -> int:
     """
     Calculate the time left in the current season based on the current date.
+    The seasons are expected to be in the format "YYYY/YYYY", e.g., "2023/2024".
     """
 
     seasons_end_date = f"{seasons.split('/')[1]}-06-30"
@@ -88,7 +90,12 @@ def calculate_time_left_in_season(seasons):
 
     return days_left_in_season
 
-def calculate_time_elapsed_in_season(seasons):
+
+def calculate_time_elapsed_in_season(seasons: str) -> int:
+    """
+    Calculate the time elapsed in the current season based on the current date.
+    The seasons are expected to be in the format "YYYY/YYYY", e.g., "2023/2024".
+    """
 
     seasons_start_date = f"{seasons.split('/')[0]}-07-01"
 
@@ -102,32 +109,82 @@ def calculate_time_elapsed_in_season(seasons):
 
     return days_elapsed_in_season
 
-def add_chart_data(df):
-    if 'datetime' in df.columns:
-        chart_data = df.copy()
-        chart_data['datetime'] = pd.to_datetime(chart_data['datetime'])
 
-        base = alt.Chart(chart_data).encode(
-            x=alt.X('datetime:T', title='Date')
-        )
+def add_chart_data(df) -> None:
+    """
+    Visualize the DataFrame using Altair charts.
+    This function creates a layered chart with a bar chart for 'Gas_per_day'
+    :return: None
+    """
 
-        bar = base.mark_bar(color='#4C78A8').encode(
-            y=alt.Y('Gas_per_day:Q', title='Gas per Day', axis=alt.Axis(title='Gas per Day'))
-        )
+    chart_data = df.copy()
+    chart_data['datetime'] = pd.to_datetime(chart_data['datetime'])
 
-        line = base.mark_line(color='#F58518', point=True).encode(
-            y=alt.Y('running_sum:Q', title='Running Sum', axis=alt.Axis(title='Running Sum', orient='right'))
-        )
+    base = alt.Chart(chart_data).encode(
+        x=alt.X('datetime:T', title='Date')
+    )
 
-        chart = alt.layer(bar, line).resolve_scale(
-            y='independent'
-        ).properties(
-            width=700,
-            height=400,
-            title='Running Sum (Line, Right Axis) and Gas per Day (Bar, Left Axis)'
-        )
+    bar = base.mark_bar(color='#4C78A8').encode(
+        y=alt.Y('Gas_per_day:Q', title='Gas per Day', axis=alt.Axis(title='Gas per Day'))
+    )
 
-        st.altair_chart(chart, use_container_width=True)
+    line = base.mark_line(color='#F58518', point=True).encode(
+        y=alt.Y('running_sum:Q', title='Running Sum', axis=alt.Axis(title='Running Sum', orient='right'))
+    )
+
+    chart = alt.layer(bar, line).resolve_scale(
+        y='independent'
+    ).properties(
+        width=700,
+        height=400,
+        title='Running Sum (Line, Right Axis) and Gas per Day (Bar, Left Axis)'
+    )
+
+    st.altair_chart(chart, use_container_width=True)
+
+
+def get_season_filter(df: pd.DataFrame) -> str:
+    """
+    This function creates a sidebar filter to select a season.
+    """
+
+    st.sidebar.title("Seasons")
+
+    seasons = get_seasons(df)
+
+    # Get selected season
+    seasons_filter = st.sidebar.selectbox(
+        "Select a season",
+        seasons,
+        # Default to the latest season
+        index=len(seasons) - 1 if seasons else 0
+    )
+
+    return seasons_filter
+
+
+def add_new_gas_reading(df: pd.DataFrame) -> None:
+    """
+    This function creates a sidebar form to input a new gas reading.
+    """
+
+    # Add a button to add a new record
+    st.sidebar.subheader("New Gas Reading")
+
+    min_gas_allowed = df['gas_reading'].max() + 1 if not df.empty else 0
+
+    with st.sidebar.form(key='add_record_form'):
+        gas_reading = st.number_input("Gas Reading", min_value=min_gas_allowed, step=1)
+        submit_button = st.form_submit_button(label='Add gas reading')
+
+        if submit_button:
+            new_record = {
+                "gas": gas_reading,
+            }
+
+            db.add_record("gas_reading", new_record)
+            st.success("Gas Reading has been Saved!")
+
 
 def main():
     """
@@ -136,23 +193,15 @@ def main():
 
     st.title("Gas Reading Dashboard")
 
-    df = get_data()  # Fetch data from the database
+    df = get_all_data("gas_reading_differences")  # Fetch data from the database
 
     if df is None:
         st.error("Failed to fetch data from the database. Please check your connection and query.")
         return
 
-    seasons = get_seasons(df)
-
-    st.sidebar.title("Seasons")
-
-    # Get selected season
-    seasons_filter = st.sidebar.selectbox(
-        "Select a season",
-        seasons,
-        # Default to the latest season
-        index= len(seasons) - 1 if seasons else 0
-    )
+    # Sidebar Stuff
+    seasons_filter = get_season_filter(df)  # 1st item in the sidebar
+    add_new_gas_reading(df)  # 2nd item in the sidebar
 
     # Filter the DataFrame based on the selected season
     filtered_df = df[df['season_name'] == seasons_filter]
@@ -161,6 +210,7 @@ def main():
     days_left_in_season = calculate_time_left_in_season(seasons_filter)
     days_elapsed_in_season = calculate_time_elapsed_in_season(seasons_filter)
 
+    # First row: 1 metric
     col1 = st.columns(1)
     with col1[0]:
         st.metric(
@@ -202,25 +252,6 @@ def main():
     st.dataframe(
         prep_dataframe(filtered_df, columns_to_drop=['season_name', 'running_sum', 'hours']),
     )
-
-    # Add a button to add a new record
-    st.sidebar.subheader("New Gas Reading")
-
-    min_gas_allowed = df['gas_reading'].max() + 1 if not df.empty else 0
-
-    with st.sidebar.form(key='add_record_form'):
-        gas_reading = st.number_input("Gas Reading", min_value=min_gas_allowed, step=1)
-        submit_button = st.form_submit_button(label='Add gas reading')
-
-        if submit_button:
-            new_record = {
-                "gas": gas_reading,
-            }
-
-            print(new_record)
-
-            add_record_to_db("gas_reading", new_record)
-            st.success("Gas Reading has been Saved!")
 
 if __name__ == "__main__":
     main()
