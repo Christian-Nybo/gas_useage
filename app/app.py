@@ -1,9 +1,9 @@
 # Core Package
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
-# 3th Party Packages
+# 3rd Party Packages
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -22,7 +22,7 @@ def get_all_data(table_name: str) -> pd.DataFrame:
     This function retrieves all records and returns them as a DataFrame.
     """
 
-    print("Fetching data from database...")
+    print(f"Fetching data from database: {table_name}")
 
     response = db.query(table_name, "*")
 
@@ -195,7 +195,7 @@ def main():
 
     df = get_all_data("gas_reading_differences")  # Fetch data from the database
 
-    if df is None:
+    if df is None or df.empty:
         st.error("Failed to fetch data from the database. Please check your connection and query.")
         return
 
@@ -252,6 +252,7 @@ def main():
     st.dataframe(
         prep_dataframe(filtered_df, columns_to_drop=['season_name', 'running_sum', 'hours']),
     )
+
 
 if __name__ == "__main__":
     main()
