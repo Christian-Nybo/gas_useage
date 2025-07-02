@@ -1,2 +1,4 @@
 # folders
 .streamlit
+.venv
+.env

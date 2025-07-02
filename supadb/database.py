@@ -9,10 +9,29 @@ import streamlit as st
 
 class Sbase:
     def __init__(self):
-        self.url = st.secrets["supabase"]["url"]
-        self.key = st.secrets["supabase"]["key"]
+        self.client = self.create_client()
 
-        self.client = create_client(self.url, self.key)
+    def create_client(self):
+        """
+        pass
+        """
+
+        # credentials to auth
+        SUBABASE_URL = st.secrets["supabase"]["SUBABASE_URL"]
+        SUBABASE_KEY = st.secrets["supabase"]["SUBABASE_KEY"]
+
+        # Sign in user
+        USER_EMAIL = st.secrets["supabase_auth"]["USER_EMAIL"]
+        USER_PASSWORD = st.secrets["supabase_auth"]["USER_PASSWORD"]
+
+        client = create_client(SUBABASE_URL, SUBABASE_KEY)
+
+        client.auth.sign_in_with_password({
+            "email": USER_EMAIL,
+            "password": USER_PASSWORD
+        })
+
+        return client
 
     def query(self, table_name, query, schema="gas"):
         """
@@ -31,16 +50,3 @@ class Sbase:
         response = self.client.schema(schema).table(table_name).insert(data).execute()
 
         return response.data if response.data else None
-
-def class_test():
-    """
-    Test function to verify the connection to Supabase.
-    """
-
-    db = Sbase()
-    response = db.query("gas_reading_differences", "*")
-
-    print(response)  # Print the first record from the response
-
-if __name__ == "__main__":
-    class_test()
