@@ -39,7 +39,7 @@ class Sbase:
 
         return client
 
-    def query(self, table_name, query, schema=None):
+    def query(self, table_name, query, schema="gas"):
         """
         Query the specified table with the given query.
 
