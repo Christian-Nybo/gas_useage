@@ -186,6 +186,78 @@ def add_new_gas_reading(df: pd.DataFrame) -> None:
             st.success("Gas Reading has been Saved!")
 
 
+def price_chart_data(df) -> None:
+
+    prices = pd.DataFrame(db.query("gas_prices", "*"))
+
+    # Ensure datetime columns are proper Timestamps
+    df['datetime'] = pd.to_datetime(df['datetime'], format='mixed')
+    prices['date'] = pd.to_datetime(prices['date'], format='mixed')
+
+    df = df.sort_values('datetime')
+    prices = prices.sort_values('date')
+
+    df['prev_datetime'] = df['datetime'].shift()
+    prices['prev_date'] = prices['date'].shift()
+
+    df['hours'] = pd.to_timedelta(df['days']).dt.total_seconds() / 3600
+    df['gas_per_day'] = df['gas_usage'] / (df['hours'] / 24)
+
+    date_range = pd.date_range(df['datetime'].min().date(), df['datetime'].max().date(), freq='D')
+    result = pd.DataFrame({'date': date_range})
+
+    for _, row in df.iterrows():
+        if pd.isna(row['prev_datetime']):
+            continue
+        prev_date = row['prev_datetime'].date()
+        curr_date = row['datetime'].date()
+        mask = (result['date'].dt.date > prev_date) & (result['date'].dt.date <= curr_date)
+        result.loc[mask, ['gas_per_day', 'season_name']] = row[['gas_per_day', 'season_name']].values
+
+    for _, row in prices.iterrows():
+        if pd.isna(row['prev_date']):
+            continue
+        prev_date = row['prev_date'].date()
+        curr_date = row['date'].date()
+        mask = (result['date'].dt.date > prev_date) & (result['date'].dt.date <= curr_date)
+        result.loc[mask, 'unit_price'] = row['unit_price']
+
+    result['gas_cost'] = result['unit_price'] * result['gas_per_day']
+
+    avg_unit_price = result['unit_price'].mean()
+    is_estimated = result['gas_cost'].isna()
+    result['gas_cost'] = result['gas_cost'].fillna(avg_unit_price)
+    result['estimated_price'] = is_estimated
+
+    # if gas_per_day is NaN, set it to 0
+    result['gas_cost'] = result['gas_cost'].fillna(avg_unit_price)
+
+    # use Altair to visualize the price data
+    # Add a selectbox to choose aggregation level
+    aggregation = st.selectbox("View by", ["Day", "Month"], index=0)
+
+    # Aggregate data based on selection
+    if aggregation == "Month":
+        result['month'] = result['date'].dt.to_period('M').dt.to_timestamp()
+        grouped = result.groupby(['month', 'season_name'], as_index=False).agg({'gas_cost': 'sum'})
+        x_field = 'month:T'
+    else:
+        grouped = result
+        x_field = 'date:T'
+
+    # Plot the chart as a bar chart
+    price_chart = alt.Chart(grouped).mark_bar().encode(
+        x=alt.X(x_field, title='Date'),
+        y=alt.Y('gas_cost:Q', title='Gas Cost'),
+        color=alt.Color('season_name:N', title='Season')
+    ).properties(
+        width=700,
+        height=400,
+        title=f'Gas Price per {"Month" if aggregation == "Month" else "Day"} by Season'
+    )
+
+    st.altair_chart(price_chart, use_container_width=True)
+
 def main():
     """
     Main function to run the Streamlit app.
@@ -215,35 +287,51 @@ def main():
     with col1[0]:
         st.metric(
             label="Data for Season:",
-            value=seasons_filter)
+            value=seasons_filter,
+            help="Season are define as the period from July 1st to June 30th of the next year."
+        )
 
     # Second row: 3 metrics
     col2 = st.columns(3)
     with col2[0]:
-        st.metric(label="Latest Gas Reading",
-                  value=f"{filtered_df['gas_reading'].max():,}" if 'running_sum' in df.columns else "0"
-                  )
+        st.metric(
+            label="Gas Reading",
+            value=f"{filtered_df['gas_reading'].max():,}" if 'running_sum' in df.columns else "0",
+            help="The latest gas reading for the selected season."
+        )
 
     with col2[1]:
-        st.metric(label="Gas Usage in Season",
-                  value=f"{filtered_df['running_sum'].max():,}" if 'running_sum' in df.columns else "0"
-                  )
+        st.metric(
+            label="Gas Usage in Season",
+            value=f"{filtered_df['running_sum'].max():,}" if 'running_sum' in df.columns else "0",
+            help="The difference between the latest and the first gas reading in the season."
+        )
     with col2[2]:
-        st.metric(label="Days left in season",
-                  value=days_left_in_season
-                  )
+        st.metric(
+            label="Days left in season",
+            value=days_left_in_season,
+            help="The number of days left in the current season."
+        )
 
     # Third row: 1 metric
     col3 = st.columns(1)
     with col3[0]:
+
+        avg_gas = filtered_df['running_sum'].max() / days_elapsed_in_season if 'running_sum' in filtered_df.columns and days_elapsed_in_season > 0 else 0,
+
         st.metric(
             label="Average Gas Usage per Day",
-            value=filtered_df[
-                      'running_sum'].max() / days_elapsed_in_season if 'running_sum' in filtered_df.columns and days_elapsed_in_season > 0 else 0
+            value=round(avg_gas[0],2),
+            help="The average gas usage per day in the current season."
         )
 
     # Add a graph to visualize the data
     add_chart_data(
+        prep_dataframe(filtered_df)
+    )
+
+    # Add price chart
+    price_chart_data(
         prep_dataframe(filtered_df)
     )
 
