@@ -8,23 +8,29 @@ import streamlit as st
 
 
 class Sbase:
-    def __init__(self):
+    """A wrapper class for Supabase database operations in Streamlit applications."""
+
+    def __init__(self, default_schema: str = "gas") -> None:
+        self.default_schema = default_schema
         self.client = self.create_client()
 
     def create_client(self):
         """
-        pass
+        Create and authenticate a Supabase client instance.
+
+        Returns:
+            supabase.Client: Authenticated Supabase client
         """
 
         # credentials to auth
-        SUBABASE_URL = st.secrets["supabase"]["SUBABASE_URL"]
-        SUBABASE_KEY = st.secrets["supabase"]["SUBABASE_KEY"]
+        SUPABASE_URL = st.secrets["supabase"]["SUPABASE_URL"]
+        SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
 
         # Sign in user
         USER_EMAIL = st.secrets["supabase_auth"]["USER_EMAIL"]
         USER_PASSWORD = st.secrets["supabase_auth"]["USER_PASSWORD"]
 
-        client = create_client(SUBABASE_URL, SUBABASE_KEY)
+        client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
         client.auth.sign_in_with_password({
             "email": USER_EMAIL,
@@ -33,20 +39,44 @@ class Sbase:
 
         return client
 
-    def query(self, table_name, query, schema="gas"):
+    def query(self, table_name, query, schema=None):
         """
         Query the specified table with the given query.
+
+        Args:
+            table_name (str): The name of the table
+            query (str): The query to execute
+            schema (str, optional): Database schema. Defaults to "None"
+
+        Returns:
+            list or None: Query results or None if no data/error
         """
 
         response = self.client.schema(schema).table(table_name).select(query).execute()
 
         return response.data if response.data else None
 
-    def add_record(self, table_name, data, schema="gas"):
+    def add_record(self, table_name, data, schema=None):
         """
         Add a record to the specified table.
+
+        Args:
+            table_name (str): The name of the table
+            data (dict): Data to insert
+            schema (str, optional): Database schema. Defaults to "None"
+
+        Returns:
+            dict or None: Inserted data or None if operation failed
         """
+        if not table_name or not data:
+            st.error("Table name and data are required")
+            return None
 
-        response = self.client.schema(schema).table(table_name).insert(data).execute()
+        schema = schema or self.default_schema
 
-        return response.data if response.data else None
+        try:
+            response = self.client.schema(schema).table(table_name).insert(data).execute()
+            return response.data if response.data else None
+        except Exception as e:
+            st.error(f"Failed to add record: {str(e)}")
+            return None
