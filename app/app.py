@@ -157,7 +157,7 @@ def get_season_filter(df: pd.DataFrame) -> str:
         "Select a season",
         seasons,
         # Default to the latest season
-        index=len(seasons) - 1 if seasons else 0
+        index= 0 #  len(seasons) - 1 if seasons else 0
     )
 
     return seasons_filter
