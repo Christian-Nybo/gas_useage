@@ -258,6 +258,67 @@ def price_chart_data(df) -> None:
 
     st.altair_chart(price_chart, use_container_width=True)
 
+def get_last_season_usage(df: pd.DataFrame, last_season: str) -> float:
+    """
+    Get the last row of the DataFrame for the specified season.
+    """
+
+    last_season_df = df[df['season_name'] == last_season]
+
+    if last_season_df.empty:
+        return 0.0
+
+    last_row = last_season_df.iloc[-1]
+
+    return last_row['running_sum'] if 'running_sum' in last_row else 0.0
+
+
+def previous_season_avg_usage_to_date(df, last_seasons_name, seasons_name) -> float:
+
+    # Extract last season data
+    df = df[df['season_name'] == last_seasons_name]
+
+    # convert 'datetime' to datetime
+    df['datetime'] = pd.to_datetime(df['datetime'])
+
+    # Remove timezone info if exists
+    if df['datetime'].dt.tz is not None:
+        df['datetime'] = df['datetime'].dt.tz_localize(None)
+
+    # Add column to last_season_df showing the days into the season
+    df['days_into_season'] = (df['datetime'] - pd.to_datetime(f"{last_seasons_name.split('/')[0]}-07-01")).dt.days
+
+    # How many days into the current season
+    days_into_current_season = calculate_time_elapsed_in_season(seasons_name)
+
+    # Filter last_season_df to get the first row where days_into_season is greater than or equal to days_into_current_season
+    df = df[df['days_into_season'] >= days_into_current_season]
+
+    # Get the last row of the filtered last_season_df
+    df = df.sort_values(by='days_into_season', ascending=False).tail(1)
+
+    gas_usage = df['running_sum'].max()
+    time_elapsed = (365 - df['days_into_season'].max())
+
+    avg_gas_usage_per_day = gas_usage / time_elapsed if time_elapsed > 0 else 0
+
+    print(df)
+
+    return float(avg_gas_usage_per_day)
+
+def previous_season_total_usage(df, last_seasons_name) -> float:
+
+    # Extract last season data
+    df = df[df['season_name'] == last_seasons_name]
+
+    if df.empty:
+        return 0.0
+
+    # Get the last row of the filtered last_season_df
+    last_row = df.iloc[1]
+
+    return float(last_row['running_sum']) if 'running_sum' in last_row else 0.0
+
 def main():
     """
     Main function to run the Streamlit app.
@@ -272,7 +333,7 @@ def main():
         return
 
     # Sidebar Stuff
-    seasons_filter = get_season_filter(df)  # 1st item in the sidebar
+    seasons_filter, last_seasons_filter = get_season_filter(df)  # 1st item in the sidebar
     add_new_gas_reading(df)  # 2nd item in the sidebar
 
     # Filter the DataFrame based on the selected season
@@ -281,6 +342,12 @@ def main():
     # Calculate days left and elapsed in the season
     days_left_in_season = calculate_time_left_in_season(seasons_filter)
     days_elapsed_in_season = calculate_time_elapsed_in_season(seasons_filter)
+
+    last_year_total_gas = previous_season_total_usage(df, last_seasons_filter)
+    avg_usage_last_year = last_year_total_gas / 365
+
+    # Estimate average usage to date based on last year's data
+    estimated_usage_to_date = int(avg_usage_last_year * days_elapsed_in_season)
 
     # First row: 1 metric
     col1 = st.columns(1)
@@ -304,6 +371,7 @@ def main():
         st.metric(
             label="Gas Usage in Season",
             value=f"{filtered_df['running_sum'].max():,}" if 'running_sum' in df.columns else "0",
+            delta=f"{estimated_usage_to_date}",
             help="The difference between the latest and the first gas reading in the season."
         )
     with col2[2]:
