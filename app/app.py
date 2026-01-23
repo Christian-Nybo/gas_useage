@@ -153,14 +153,22 @@ def get_season_filter(df: pd.DataFrame) -> str:
     seasons = get_seasons(df)
 
     # Get selected season
-    seasons_filter = st.sidebar.selectbox(
+    current_season_filter = st.sidebar.selectbox(
         "Select a season",
         seasons,
         # Default to the latest season
         index= 0 #  len(seasons) - 1 if seasons else 0
     )
 
-    return seasons_filter
+    last_year_season = st.sidebar.selectbox(
+        "Select a season",
+        seasons,
+        # Default to the latest season
+        index= 1 #  len(seasons) - 1 if seasons else 0
+    )
+
+
+    return current_season_filter, last_year_season
 
 
 def add_new_gas_reading(df: pd.DataFrame) -> None:
@@ -234,13 +242,16 @@ def price_chart_data(df) -> None:
 
     # use Altair to visualize the price data
     # Add a selectbox to choose aggregation level
-    aggregation = st.selectbox("View by", ["Day", "Month"], index=0)
+    aggregation = st.selectbox("View by", ["Day", "Month", "Total"], index=0)
 
     # Aggregate data based on selection
     if aggregation == "Month":
         result['month'] = result['date'].dt.to_period('M').dt.to_timestamp()
         grouped = result.groupby(['month', 'season_name'], as_index=False).agg({'gas_cost': 'sum'})
         x_field = 'month:T'
+    elif aggregation == "Total":
+        grouped = result.groupby(['season_name'], as_index=False).agg({'gas_cost': 'sum'})
+        x_field = 'season_name:N'
     else:
         grouped = result
         x_field = 'date:T'
