@@ -12,3 +12,6 @@ dist/
 .streamlit/secrets.toml
 .ruff_cache/
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
