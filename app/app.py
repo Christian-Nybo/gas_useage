@@ -299,48 +299,53 @@ def get_last_season_usage(df: pd.DataFrame, last_season: str) -> float:
 def previous_season_avg_usage_to_date(df, last_seasons_name, seasons_name) -> float:
 
     # Extract last season data
-    df = df[df['season_name'] == last_seasons_name]
+    last_df = df[df['season_name'] == last_seasons_name].copy()
+
+    if last_df.empty:
+        return 0.0
 
     # convert 'datetime' to datetime
-    df['datetime'] = pd.to_datetime(df['datetime'])
+    last_df['datetime'] = pd.to_datetime(last_df['datetime'])
 
     # Remove timezone info if exists
-    if df['datetime'].dt.tz is not None:
-        df['datetime'] = df['datetime'].dt.tz_localize(None)
+    if last_df['datetime'].dt.tz is not None:
+        last_df['datetime'] = last_df['datetime'].dt.tz_localize(None)
 
     # Add column to last_season_df showing the days into the season
-    df['days_into_season'] = (df['datetime'] - pd.to_datetime(f"{last_seasons_name.split('/')[0]}-07-01")).dt.days
+    last_df['days_into_season'] = (
+        last_df['datetime'] - pd.to_datetime(f"{last_seasons_name.split('/')[0]}-07-01")
+    ).dt.days
 
     # How many days into the current season
     days_into_current_season = calculate_time_elapsed_in_season(seasons_name)
 
     # Filter last_season_df to get the first row where days_into_season is greater than or equal to days_into_current_season
-    df = df[df['days_into_season'] >= days_into_current_season]
+    last_df = last_df[last_df['days_into_season'] >= days_into_current_season]
 
     # Get the last row of the filtered last_season_df
-    df = df.sort_values(by='days_into_season', ascending=False).tail(1)
+    last_df = last_df.sort_values(by='days_into_season', ascending=False).tail(1)
 
-    gas_usage = df['running_sum'].max()
-    time_elapsed = (365 - df['days_into_season'].max())
+    gas_usage = last_df['running_sum'].max()
+    time_elapsed = (365 - last_df['days_into_season'].max())
 
     avg_gas_usage_per_day = gas_usage / time_elapsed if time_elapsed > 0 else 0
 
-    print(df)
+    print(last_df)
 
     return float(avg_gas_usage_per_day)
 
 def previous_season_total_usage(df, last_seasons_name) -> float:
 
     # Extract last season data
-    df = df[df['season_name'] == last_seasons_name]
+    last_season_df = df[df['season_name'] == last_seasons_name]
 
-    if df.empty:
+    if last_season_df.empty or 'running_sum' not in last_season_df.columns:
         return 0.0
 
     # Get the last row of the filtered last_season_df
-    last_row = df.iloc[1]
+    last_row = last_season_df.iloc[-1]
 
-    return float(last_row['running_sum']) if 'running_sum' in last_row else 0.0
+    return float(last_row['running_sum'])
 
 def main():
     """
@@ -386,7 +391,7 @@ def main():
     with col2[0]:
         st.metric(
             label="Gas Reading",
-            value=f"{filtered_df['gas_reading'].max():,}" if 'running_sum' in df.columns else "0",
+            value=f"{filtered_df['gas_reading'].max():,}" if 'gas_reading' in filtered_df.columns and not filtered_df.empty else "0",
             help="The latest gas reading for the selected season."
         )
 
@@ -408,11 +413,15 @@ def main():
     col3 = st.columns(1)
     with col3[0]:
 
-        avg_gas = filtered_df['running_sum'].max() / days_elapsed_in_season if 'running_sum' in filtered_df.columns and days_elapsed_in_season > 0 else 0,
+        avg_gas = (
+            filtered_df['running_sum'].max() / days_elapsed_in_season
+            if 'running_sum' in filtered_df.columns and days_elapsed_in_season > 0
+            else 0
+        )
 
         st.metric(
             label="Average Gas Usage per Day",
-            value=round(avg_gas[0],2),
+            value=round(avg_gas, 2),
             help="The average gas usage per day in the current season."
         )
 
