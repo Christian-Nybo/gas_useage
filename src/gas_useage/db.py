@@ -1,8 +1,8 @@
 # Core Package
 
 # 3th Party Packages
-from supabase import create_client
 import streamlit as st
+from supabase import Client, create_client
 
 # User Defined Packages
 
@@ -14,7 +14,7 @@ class Sbase:
         self.default_schema = default_schema
         self.client = self.create_client()
 
-    def create_client(self):
+    def create_client(self) -> Client:
         """
         Create and authenticate a Supabase client instance.
 
@@ -32,14 +32,11 @@ class Sbase:
 
         client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-        client.auth.sign_in_with_password({
-            "email": USER_EMAIL,
-            "password": USER_PASSWORD
-        })
+        client.auth.sign_in_with_password({"email": USER_EMAIL, "password": USER_PASSWORD})
 
         return client
 
-    def query(self, table_name, query, schema="gas"):
+    def query(self, table_name, query, schema="gas") -> list | None:
         """
         Query the specified table with the given query.
 
@@ -56,7 +53,7 @@ class Sbase:
 
         return response.data if response.data else None
 
-    def add_record(self, table_name, data, schema=None):
+    def add_record(self, table_name, data, schema=None) -> list | None:
         """
         Add a record to the specified table.
 
