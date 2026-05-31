@@ -9,6 +9,7 @@ authors = [
 dependencies = [
     "altair~=5.5.0",
     "pandas~=2.3.0",
+    "pydantic-settings>=2.14.1",
     "streamlit~=1.46.1",
     "supabase~=2.16.0",
 ]

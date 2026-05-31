@@ -1,181 +1,59 @@
-# Core Package
-from datetime import datetime
+"""Streamlit entry point for the gas usage dashboard.
 
-import altair as alt
-import pandas as pd
+This module wires the pure helpers in :mod:`gas_useage.transforms`,
+:mod:`gas_useage.seasons`, :mod:`gas_useage.charts` and the cached
+data accessors in :mod:`gas_useage.data` into the Streamlit UI. It owns the
+logging configuration (set up exactly once in :func:`main`).
+"""
+
+# Core Package
+import logging
 
 # 3rd Party Packages
+import pandas as pd
 import streamlit as st
 
 # User Defined Packages
-from gas_useage.db import Sbase
+from gas_useage.charts import build_cost_chart, build_usage_chart
+from gas_useage.data import add_gas_reading, get_all_data, load_prices
+from gas_useage.seasons import (
+    calculate_time_elapsed_in_season,
+    calculate_time_left_in_season,
+    get_seasons,
+)
+from gas_useage.settings import Tariffs
+from gas_useage.transforms import (
+    aggregate_cost,
+    build_daily_cost_frame,
+    prep_dataframe,
+    previous_season_total_usage,
+)
 
-db = Sbase()
-
-
-def get_all_data(table_name: str) -> pd.DataFrame:
-    """
-    Fetch data from the gas_reading_differences table.
-    This function retrieves all records and returns them as a DataFrame.
-    """
-
-    print(f"Fetching data from database: {table_name}")
-
-    response = db.query(table_name, "*")
-
-    df = pd.DataFrame(response)
-
-    return df
+logger = logging.getLogger(__name__)
 
 
-def get_seasons(df: pd.DataFrame) -> list[str]:
-    """
-    Get unique seasons from the DataFrame.
-    """
-
-    # Ensure df is a DataFrame
-    if isinstance(df, list):
-        df = pd.DataFrame(df)
-    return df["season_name"].unique().tolist()
-
-
-def prep_dataframe(df_original: pd.DataFrame, columns_to_drop: list[str] = None) -> pd.DataFrame:
-    """
-    Manipulate the DataFrame to prepare it for display.
-    """
-
-    df = df_original.copy()
-
-    # Convert 'datetime' column to date type
-    if "datetime" in df.columns:
-        df["datetime"] = pd.to_datetime(df["datetime"]).dt.date
-
-    # Convert 'days' column to hours (string format: 5 days 02:45:00)
-    if "days" in df.columns:
-        df["hours"] = pd.to_timedelta(df["days"]).dt.total_seconds() / 3600
-
-    # add a 'Gas_per_day' column
-    if "gas_usage" in df.columns and "days" in df.columns:
-        df["Gas_per_day"] = df["gas_usage"] / (df["hours"] / 24)
-
-    # order the DataFrame by 'datetime' newest to oldest
-    if "datetime" in df.columns:
-        df = df.sort_values(by="datetime", ascending=False)
-
-    # Drop unnecessary columns
-    if columns_to_drop is not None:
-        df = df.drop(columns=columns_to_drop, errors="ignore")
-
-    return df
-
-
-def calculate_time_left_in_season(seasons: str) -> int:
-    """
-    Calculate the time left in the current season based on the current date.
-    The seasons are expected to be in the format "YYYY/YYYY", e.g., "2023/2024".
-    """
-
-    seasons_end_date = f"{seasons.split('/')[1]}-06-30"
-
-    days_left_in_season = (datetime.strptime(seasons_end_date, "%Y-%m-%d") - datetime.now()).days
-
-    # Ensure days_left_in_season is not negative round up if decimal
-    if days_left_in_season < 0:
-        days_left_in_season = 0
-    else:
-        days_left_in_season = round(days_left_in_season)
-
-    return days_left_in_season
-
-
-def calculate_time_elapsed_in_season(seasons: str) -> int:
-    """
-    Calculate the time elapsed in the current season based on the current date.
-    The seasons are expected to be in the format "YYYY/YYYY", e.g., "2023/2024".
-    """
-
-    seasons_start_date = f"{seasons.split('/')[0]}-07-01"
-
-    days_elapsed_in_season = (
-        datetime.now() - datetime.strptime(seasons_start_date, "%Y-%m-%d")
-    ).days
-
-    # Ensure days_elapsed_in_season is not above 365
-    if days_elapsed_in_season > 365:
-        days_elapsed_in_season = 365
-    else:
-        days_elapsed_in_season = round(days_elapsed_in_season)
-
-    return days_elapsed_in_season
-
-
-def add_chart_data(df, full_df=None, current_season=None, last_season=None) -> None:
-    """
-    Visualize the DataFrame using Altair charts.
-    This function creates a layered chart with a bar chart for 'Gas_per_day'
-    :return: None
-    """
-
-    chart_data = df.copy()
-    chart_data["datetime"] = pd.to_datetime(chart_data["datetime"])
-
-    base = alt.Chart(chart_data).encode(x=alt.X("datetime:T", title="Date"))
-
-    bar = base.mark_bar(color="#4C78A8").encode(
-        y=alt.Y("Gas_per_day:Q", title="Gas per Day", axis=alt.Axis(title="Gas per Day"))
+def _configure_logging() -> None:
+    """Configure root logging once for the Streamlit process."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s | %(message)s",
     )
 
-    line = base.mark_line(color="#F58518", point=True).encode(
-        y=alt.Y(
-            "running_sum:Q", title="Running Sum", axis=alt.Axis(title="Running Sum", orient="right")
-        )
-    )
 
-    layers = [bar, line]
-    if full_df is not None and current_season and last_season and last_season != current_season:
-        overlay = build_last_season_overlay(full_df, last_season, current_season)
-        if not overlay.empty:
-            line_last = (
-                alt.Chart(overlay)
-                .mark_line(color="#F58518", strokeDash=[4, 4], opacity=0.5)
-                .encode(
-                    x=alt.X("datetime:T"),
-                    y=alt.Y("running_sum:Q", axis=alt.Axis(title="Running Sum", orient="right")),
-                )
-            )
-            layers.append(line_last)
-
-    chart = (
-        alt.layer(*layers)
-        .resolve_scale(y="independent")
-        .properties(
-            width=700,
-            height=400,
-            title="Running Sum (Solid: Current, Dashed: Last Season) and Gas per Day",
-        )
-    )
-
-    st.altair_chart(chart, use_container_width=True)
-
-
-def get_season_filter(df: pd.DataFrame) -> str:
-    """
-    This function creates a sidebar filter to select a season.
-    """
-
+def get_season_filter(df: pd.DataFrame) -> tuple[str, str]:
+    """Render the season picker in the sidebar and return (current, previous)."""
     st.sidebar.title("Seasons")
 
     seasons = get_seasons(df)
 
-    # Get selected season
     current_season_filter = st.sidebar.selectbox(
         "Select a season",
         seasons,
-        # Default to the latest season
-        index=0,  #  len(seasons) - 1 if seasons else 0
+        # Latest season first because get_seasons sorts descending.
+        index=0,
     )
 
-    # Derive previous season from the selected one (e.g. "2025/2026" -> "2024/2025")
+    # Derive previous season from the selected one (e.g. "2025/2026" -> "2024/2025").
     start, end = (int(p) for p in current_season_filter.split("/"))
     last_year_season = f"{start - 1}/{end - 1}"
 
@@ -183,11 +61,7 @@ def get_season_filter(df: pd.DataFrame) -> str:
 
 
 def add_new_gas_reading(df: pd.DataFrame) -> None:
-    """
-    This function creates a sidebar form to input a new gas reading.
-    """
-
-    # Add a button to add a new record
+    """Render the sidebar form for submitting a new gas reading."""
     st.sidebar.subheader("New Gas Reading")
 
     min_gas_allowed = df["gas_reading"].max() + 1 if not df.empty else 0
@@ -197,235 +71,55 @@ def add_new_gas_reading(df: pd.DataFrame) -> None:
         submit_button = st.form_submit_button(label="Add gas reading")
 
         if submit_button:
-            new_record = {
-                "gas": gas_reading,
-            }
-
-            db.add_record("gas_reading", new_record)
+            add_gas_reading(int(gas_reading))
             st.success("Gas Reading has been Saved!")
 
-            # Trigger a rerun so the dashboard reflects the new reading immediately
+            # Trigger a rerun so the dashboard reflects the new reading immediately.
             if hasattr(st, "rerun"):
                 st.rerun()
             else:
                 st.experimental_rerun()
 
 
-def price_chart_data(df) -> None:
+def render_cost_chart(prepared_df: pd.DataFrame, tariffs: Tariffs) -> None:
+    """Render the gas cost chart for the prepared per-season dataframe."""
+    prices = load_prices()
+    result = build_daily_cost_frame(prepared_df, prices, tariffs)
 
-    prices = pd.DataFrame(db.query("gas_prices", "*"))
-
-    # Ensure datetime columns are proper Timestamps
-    df["datetime"] = pd.to_datetime(df["datetime"], format="mixed")
-    prices["date"] = pd.to_datetime(prices["date"], format="mixed")
-
-    df = df.sort_values("datetime")
-    prices = prices.sort_values("date")
-
-    df["prev_datetime"] = df["datetime"].shift()
-    prices["prev_date"] = prices["date"].shift()
-
-    df["hours"] = pd.to_timedelta(df["days"]).dt.total_seconds() / 3600
-    df["gas_per_day"] = df["gas_usage"] / (df["hours"] / 24)
-
-    date_range = pd.date_range(df["datetime"].min().date(), df["datetime"].max().date(), freq="D")
-    result = pd.DataFrame({"date": date_range})
-
-    for _, row in df.iterrows():
-        if pd.isna(row["prev_datetime"]):
-            continue
-        prev_date = row["prev_datetime"].date()
-        curr_date = row["datetime"].date()
-        mask = (result["date"].dt.date > prev_date) & (result["date"].dt.date <= curr_date)
-        result.loc[mask, ["gas_per_day", "season_name"]] = row[
-            ["gas_per_day", "season_name"]
-        ].values
-
-    for _, row in prices.iterrows():
-        if pd.isna(row["prev_date"]):
-            continue
-        prev_date = row["prev_date"].date()
-        curr_date = row["date"].date()
-        mask = (result["date"].dt.date > prev_date) & (result["date"].dt.date <= curr_date)
-        result.loc[mask, "unit_price"] = row["unit_price"]
-
-    avg_unit_price = result["unit_price"].mean()
-    is_estimated = result["unit_price"].isna()
-    result["estimated_price"] = is_estimated
-
-    result["unit_price"] = result["unit_price"].fillna(avg_unit_price)
-
-    result["unit_fee"] = 4.38
-    result["subscription_fee1"] = 2051.44 / 365  # Evidas årlige systemtarif samt målerbetaling.
-    result["subscription_fee2"] = 228.00 / 365  # Andel Energi - Abonnement pr. år
-
-    result["total_unit_fee"] = (
-        result["unit_fee"] + result["subscription_fee1"] + result["subscription_fee2"]
-    )
-
-    result["total_unit_price"] = result["unit_price"] + result["total_unit_fee"]
-
-    result["gas_cost"] = result["total_unit_price"] * result["gas_per_day"]
-
-    print(result)
-
-    # if gas_per_day is NaN, set it to 0
-    result["gas_cost"] = result["gas_cost"].fillna(avg_unit_price)
-
-    # use Altair to visualize the price data
-    # Add a selectbox to choose aggregation level
     aggregation = st.selectbox("View by", ["Day", "Month", "Total"], index=0)
+    grouped, x_field = aggregate_cost(result, aggregation)
 
-    # Aggregate data based on selection
-    if aggregation == "Month":
-        result["month"] = result["date"].dt.to_period("M").dt.to_timestamp()
-        grouped = result.groupby(["month", "season_name"], as_index=False).agg({"gas_cost": "sum"})
-        x_field = "month:T"
-    elif aggregation == "Total":
-        grouped = result.groupby(["season_name"], as_index=False).agg({"gas_cost": "sum"})
-        x_field = "season_name:N"
-    else:
-        grouped = result
-        x_field = "date:T"
-
-    # Plot the chart as a bar chart
-    price_chart = (
-        alt.Chart(grouped)
-        .mark_bar()
-        .encode(
-            x=alt.X(x_field, title="Date"),
-            y=alt.Y("gas_cost:Q", title="Gas Cost"),
-            color=alt.Color("season_name:N", title="Season"),
-        )
-        .properties(
-            width=700,
-            height=400,
-            title=f"Gas Price per {'Month' if aggregation == 'Month' else 'Day'} by Season",
-        )
-    )
-
-    st.altair_chart(price_chart, use_container_width=True)
-
-
-def get_last_season_usage(df: pd.DataFrame, last_season: str) -> float:
-    """
-    Get the last row of the DataFrame for the specified season.
-    """
-
-    last_season_df = df[df["season_name"] == last_season]
-
-    if last_season_df.empty:
-        return 0.0
-
-    last_row = last_season_df.iloc[-1]
-
-    return last_row["running_sum"] if "running_sum" in last_row else 0.0
-
-
-def build_last_season_overlay(
-    full_df: pd.DataFrame, last_season: str, current_season: str
-) -> pd.DataFrame:
-    """
-    Slice last season from full_df and remap its dates so day-of-season aligns
-    with the current season's calendar. Returns ['datetime', 'running_sum'].
-    """
-    last_df = full_df[full_df["season_name"] == last_season].copy()
-    if last_df.empty:
-        return last_df
-
-    last_df["datetime"] = pd.to_datetime(last_df["datetime"])
-    if last_df["datetime"].dt.tz is not None:
-        last_df["datetime"] = last_df["datetime"].dt.tz_localize(None)
-
-    last_start = pd.to_datetime(f"{last_season.split('/')[0]}-07-01")
-    current_start = pd.to_datetime(f"{current_season.split('/')[0]}-07-01")
-    last_df["days_into_season"] = (last_df["datetime"] - last_start).dt.days
-    last_df["datetime"] = current_start + pd.to_timedelta(last_df["days_into_season"], unit="D")
-
-    return last_df[["datetime", "running_sum"]].sort_values("datetime")
-
-
-def previous_season_avg_usage_to_date(df, last_seasons_name, seasons_name) -> float:
-
-    # Extract last season data
-    last_df = df[df["season_name"] == last_seasons_name].copy()
-
-    if last_df.empty:
-        return 0.0
-
-    # convert 'datetime' to datetime
-    last_df["datetime"] = pd.to_datetime(last_df["datetime"])
-
-    # Remove timezone info if exists
-    if last_df["datetime"].dt.tz is not None:
-        last_df["datetime"] = last_df["datetime"].dt.tz_localize(None)
-
-    # Add column to last_season_df showing the days into the season
-    last_df["days_into_season"] = (
-        last_df["datetime"] - pd.to_datetime(f"{last_seasons_name.split('/')[0]}-07-01")
-    ).dt.days
-
-    # How many days into the current season
-    days_into_current_season = calculate_time_elapsed_in_season(seasons_name)
-
-    # Filter last_season_df to get the first row where days_into_season is greater than or equal to days_into_current_season
-    last_df = last_df[last_df["days_into_season"] >= days_into_current_season]
-
-    # Get the last row of the filtered last_season_df
-    last_df = last_df.sort_values(by="days_into_season", ascending=False).tail(1)
-
-    gas_usage = last_df["running_sum"].max()
-    time_elapsed = 365 - last_df["days_into_season"].max()
-
-    avg_gas_usage_per_day = gas_usage / time_elapsed if time_elapsed > 0 else 0
-
-    print(last_df)
-
-    return float(avg_gas_usage_per_day)
-
-
-def previous_season_total_usage(df, last_seasons_name) -> float:
-
-    # Extract last season data
-    last_season_df = df[df["season_name"] == last_seasons_name]
-
-    if last_season_df.empty or "running_sum" not in last_season_df.columns:
-        return 0.0
-
-    # Get the last row of the filtered last_season_df
-    last_row = last_season_df.iloc[-1]
-
-    return float(last_row["running_sum"])
+    st.altair_chart(build_cost_chart(grouped, x_field, aggregation), use_container_width=True)
 
 
 def main() -> None:
-    """
-    Main function to run the Streamlit app.
-    """
+    """Main function to run the Streamlit app."""
+    _configure_logging()
+
+    tariffs = Tariffs()
 
     st.title("Gas Reading Dashboard")
 
-    df = get_all_data("gas_reading_differences")  # Fetch data from the database
+    df = get_all_data("gas_reading_differences")
 
-    if df is None or df.empty:
+    if df.empty:
         st.error("Failed to fetch data from the database. Please check your connection and query.")
         return
 
-    # Sidebar Stuff
-    seasons_filter, last_seasons_filter = get_season_filter(df)  # 1st item in the sidebar
-    add_new_gas_reading(df)  # 2nd item in the sidebar
+    # Sidebar
+    seasons_filter, last_seasons_filter = get_season_filter(df)
+    add_new_gas_reading(df)
 
-    # Filter the DataFrame based on the selected season
+    # Filter the DataFrame based on the selected season and prep once.
     filtered_df = df[df["season_name"] == seasons_filter]
+    prepared_df = prep_dataframe(filtered_df)
 
-    # Calculate days left and elapsed in the season
     days_left_in_season = calculate_time_left_in_season(seasons_filter)
     days_elapsed_in_season = calculate_time_elapsed_in_season(seasons_filter)
 
     last_year_total_gas = previous_season_total_usage(df, last_seasons_filter)
     avg_usage_last_year = last_year_total_gas / 365
 
-    # Estimate average usage to date based on last year's data
     estimated_usage_to_date = int(avg_usage_last_year * days_elapsed_in_season)
 
     # First row: 1 metric
@@ -477,21 +171,24 @@ def main() -> None:
             help="The average gas usage per day in the current season.",
         )
 
-    # Add a graph to visualize the data
-    add_chart_data(
-        prep_dataframe(filtered_df),
-        full_df=df,
-        current_season=seasons_filter,
-        last_season=last_seasons_filter,
+    # Usage chart
+    st.altair_chart(
+        build_usage_chart(
+            prepared_df,
+            full_df=df,
+            current_season=seasons_filter,
+            last_season=last_seasons_filter,
+        ),
+        use_container_width=True,
     )
 
-    # Add price chart
-    price_chart_data(prep_dataframe(filtered_df))
+    # Cost chart
+    render_cost_chart(prepared_df, tariffs)
 
     # Display filtered data
     st.subheader("Raw Data")
     st.dataframe(
-        prep_dataframe(filtered_df, columns_to_drop=["season_name", "running_sum", "hours"]),
+        prepared_df.drop(columns=["season_name", "running_sum", "hours"], errors="ignore"),
     )
 
 
