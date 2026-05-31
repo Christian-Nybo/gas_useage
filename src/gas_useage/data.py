@@ -39,7 +39,14 @@ def load_prices() -> pd.DataFrame:
     return pd.DataFrame(get_db().query("gas_prices", "*"))
 
 
-def add_gas_reading(reading: int) -> None:
-    """Insert a new gas reading and invalidate all cached query results."""
-    get_db().add_record("gas_reading", {"gas": reading})
-    st.cache_data.clear()
+def add_gas_reading(reading: int) -> bool:
+    """Insert a new gas reading and invalidate cached query results on success.
+
+    Returns ``True`` if the insert succeeded, ``False`` otherwise. The cache
+    is only cleared on success so a failed write does not evict known-good
+    cached data.
+    """
+    success = get_db().add_record("gas_reading", {"gas": reading})
+    if success:
+        st.cache_data.clear()
+    return success

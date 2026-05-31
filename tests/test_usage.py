@@ -136,10 +136,32 @@ class TestPreviousSeasonAvgUsageToDate:
         )
         # Today is well past day 45 of the 2024/2025 season -> filter empties.
         _freeze_seasons_clock(monkeypatch, 2025, 4, 1)
+
+        # Spy on ``DataFrame.sort_values`` to assert the empty-frame guard
+        # short-circuits BEFORE the sort. Without the guard, ``pd.Series.max``
+        # on the emptied frame silently returns NaN (no warning), and the
+        # downstream ``time_elapsed > 0`` check also evaluates to False on
+        # NaN -- so pre-fix and post-fix both yield 0.0 for the caller.
+        # Asserting that ``sort_values`` is never reached is the discriminating
+        # signal: with the guard it is not called; without the guard it is.
+        original_sort_values = pd.DataFrame.sort_values
+        sort_calls: list[None] = []
+
+        def spy_sort_values(self: pd.DataFrame, *args: object, **kwargs: object) -> pd.DataFrame:
+            sort_calls.append(None)
+            return original_sort_values(self, *args, **kwargs)
+
+        monkeypatch.setattr(pd.DataFrame, "sort_values", spy_sort_values)
+
         # WHEN we ask for the avg
         avg = previous_season_avg_usage_to_date(df, "2023/2024", "2024/2025")
-        # THEN we get 0.0 (not NaN from an empty ``.max()``)
+        # THEN we get 0.0 AND the empty-frame guard fired before the sort step
+        # (i.e. no NaN-yielding ``.max()`` was reached).
         assert avg == 0.0
+        assert sort_calls == [], (
+            "Expected the empty-frame guard to short-circuit before "
+            "sort_values; instead the function continued past the filter."
+        )
 
     def test_handles_tz_aware_datetime(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # GIVEN a tz-aware ``datetime`` column for last season

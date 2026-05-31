@@ -71,14 +71,16 @@ def add_new_gas_reading(df: pd.DataFrame) -> None:
         submit_button = st.form_submit_button(label="Add gas reading")
 
         if submit_button:
-            add_gas_reading(int(gas_reading))
-            st.success("Gas Reading has been Saved!")
+            # ``add_gas_reading`` returns False on failure (and already shows an
+            # st.error via the data layer); only celebrate + rerun on success.
+            if add_gas_reading(int(gas_reading)):
+                st.success("Gas Reading has been Saved!")
 
-            # Trigger a rerun so the dashboard reflects the new reading immediately.
-            if hasattr(st, "rerun"):
-                st.rerun()
-            else:
-                st.experimental_rerun()
+                # Trigger a rerun so the dashboard reflects the new reading immediately.
+                if hasattr(st, "rerun"):
+                    st.rerun()
+                else:
+                    st.experimental_rerun()
 
 
 def render_cost_chart(prepared_df: pd.DataFrame, tariffs: Tariffs) -> None:
@@ -163,7 +165,9 @@ def main() -> None:
     with col3[0]:
         avg_gas = (
             filtered_df["running_sum"].max() / days_elapsed_in_season
-            if "running_sum" in filtered_df.columns and days_elapsed_in_season > 0
+            if not filtered_df.empty
+            and "running_sum" in filtered_df.columns
+            and days_elapsed_in_season > 0
             else 0
         )
 
