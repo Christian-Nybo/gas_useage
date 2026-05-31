@@ -230,12 +230,24 @@ def price_chart_data(df) -> None:
         mask = (result['date'].dt.date > prev_date) & (result['date'].dt.date <= curr_date)
         result.loc[mask, 'unit_price'] = row['unit_price']
 
-    result['gas_cost'] = result['unit_price'] * result['gas_per_day']
-
     avg_unit_price = result['unit_price'].mean()
-    is_estimated = result['gas_cost'].isna()
-    result['gas_cost'] = result['gas_cost'].fillna(avg_unit_price)
+    is_estimated = result['unit_price'].isna()
     result['estimated_price'] = is_estimated
+
+    result['unit_price'] = result['unit_price'].fillna(avg_unit_price)
+
+    result['unit_fee'] = 4.38
+    result['subscription_fee1'] = 2051.44 / 365  # Evidas årlige systemtarif samt målerbetaling.
+    result['subscription_fee2'] = 228.00 / 365  # Andel Energi - Abonnement pr. år
+
+    result['total_unit_fee'] = result['unit_fee'] + result['subscription_fee1'] + result['subscription_fee2']
+
+    result['total_unit_price'] = result['unit_price'] + result['total_unit_fee']
+
+    result['gas_cost'] = result['total_unit_price'] * result['gas_per_day']
+
+    print(result)
+
 
     # if gas_per_day is NaN, set it to 0
     result['gas_cost'] = result['gas_cost'].fillna(avg_unit_price)
