@@ -110,7 +110,7 @@ def calculate_time_elapsed_in_season(seasons: str) -> int:
     return days_elapsed_in_season
 
 
-def add_chart_data(df) -> None:
+def add_chart_data(df, full_df=None, current_season=None, last_season=None) -> None:
     """
     Visualize the DataFrame using Altair charts.
     This function creates a layered chart with a bar chart for 'Gas_per_day'
@@ -132,12 +132,24 @@ def add_chart_data(df) -> None:
         y=alt.Y('running_sum:Q', title='Running Sum', axis=alt.Axis(title='Running Sum', orient='right'))
     )
 
-    chart = alt.layer(bar, line).resolve_scale(
+    layers = [bar, line]
+    if full_df is not None and current_season and last_season and last_season != current_season:
+        overlay = build_last_season_overlay(full_df, last_season, current_season)
+        if not overlay.empty:
+            line_last = alt.Chart(overlay).mark_line(
+                color='#F58518', strokeDash=[4, 4], opacity=0.5
+            ).encode(
+                x=alt.X('datetime:T'),
+                y=alt.Y('running_sum:Q', axis=alt.Axis(title='Running Sum', orient='right')),
+            )
+            layers.append(line_last)
+
+    chart = alt.layer(*layers).resolve_scale(
         y='independent'
     ).properties(
         width=700,
         height=400,
-        title='Running Sum (Line, Right Axis) and Gas per Day (Bar, Left Axis)'
+        title='Running Sum (Solid: Current, Dashed: Last Season) and Gas per Day',
     )
 
     st.altair_chart(chart, use_container_width=True)
@@ -298,6 +310,27 @@ def get_last_season_usage(df: pd.DataFrame, last_season: str) -> float:
     return last_row['running_sum'] if 'running_sum' in last_row else 0.0
 
 
+def build_last_season_overlay(full_df: pd.DataFrame, last_season: str, current_season: str) -> pd.DataFrame:
+    """
+    Slice last season from full_df and remap its dates so day-of-season aligns
+    with the current season's calendar. Returns ['datetime', 'running_sum'].
+    """
+    last_df = full_df[full_df['season_name'] == last_season].copy()
+    if last_df.empty:
+        return last_df
+
+    last_df['datetime'] = pd.to_datetime(last_df['datetime'])
+    if last_df['datetime'].dt.tz is not None:
+        last_df['datetime'] = last_df['datetime'].dt.tz_localize(None)
+
+    last_start = pd.to_datetime(f"{last_season.split('/')[0]}-07-01")
+    current_start = pd.to_datetime(f"{current_season.split('/')[0]}-07-01")
+    last_df['days_into_season'] = (last_df['datetime'] - last_start).dt.days
+    last_df['datetime'] = current_start + pd.to_timedelta(last_df['days_into_season'], unit='D')
+
+    return last_df[['datetime', 'running_sum']].sort_values('datetime')
+
+
 def previous_season_avg_usage_to_date(df, last_seasons_name, seasons_name) -> float:
 
     # Extract last season data
@@ -429,7 +462,10 @@ def main():
 
     # Add a graph to visualize the data
     add_chart_data(
-        prep_dataframe(filtered_df)
+        prep_dataframe(filtered_df),
+        full_df=df,
+        current_season=seasons_filter,
+        last_season=last_seasons_filter,
     )
 
     # Add price chart
