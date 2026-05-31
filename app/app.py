@@ -160,13 +160,9 @@ def get_season_filter(df: pd.DataFrame) -> str:
         index= 0 #  len(seasons) - 1 if seasons else 0
     )
 
-    last_year_season = st.sidebar.selectbox(
-        "Select a season",
-        seasons,
-        # Default to the latest season
-        index= 1 #  len(seasons) - 1 if seasons else 0
-    )
-
+    # Derive previous season from the selected one (e.g. "2025/2026" -> "2024/2025")
+    start, end = (int(p) for p in current_season_filter.split("/"))
+    last_year_season = f"{start - 1}/{end - 1}"
 
     return current_season_filter, last_year_season
 
@@ -192,6 +188,12 @@ def add_new_gas_reading(df: pd.DataFrame) -> None:
 
             db.add_record("gas_reading", new_record)
             st.success("Gas Reading has been Saved!")
+
+            # Trigger a rerun so the dashboard reflects the new reading immediately
+            if hasattr(st, "rerun"):
+                st.rerun()
+            else:
+                st.experimental_rerun()
 
 
 def price_chart_data(df) -> None:
