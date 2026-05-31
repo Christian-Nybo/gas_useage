@@ -85,7 +85,5 @@ class FakeDataSource:
     def __init__(self, tables: dict[str, list[dict]]) -> None:
         self._tables = tables
 
-    def query(
-        self, table_name: str, query: str, schema: str | None = None
-    ) -> list[dict] | None:
+    def query(self, table_name: str, query: str, schema: str | None = None) -> list[dict] | None:
         return self._tables.get(table_name)

@@ -108,12 +108,8 @@ class TestBuildLastSeasonOverlay:
         # GIVEN a frame holding rows from a previous season
         df = pd.DataFrame(
             [
-                make_gas_row(
-                    datetime="2023-07-15", season_name="2023/2024", running_sum=5.0
-                ),
-                make_gas_row(
-                    datetime="2023-10-15", season_name="2023/2024", running_sum=50.0
-                ),
+                make_gas_row(datetime="2023-07-15", season_name="2023/2024", running_sum=5.0),
+                make_gas_row(datetime="2023-10-15", season_name="2023/2024", running_sum=50.0),
             ]
         )
         # WHEN we build the overlay onto the current season
@@ -190,9 +186,7 @@ class TestAggregateCost:
     def _result_frame(self) -> pd.DataFrame:
         return pd.DataFrame(
             {
-                "date": pd.to_datetime(
-                    ["2024-08-01", "2024-08-15", "2024-09-01", "2024-09-15"]
-                ),
+                "date": pd.to_datetime(["2024-08-01", "2024-08-15", "2024-09-01", "2024-09-15"]),
                 "season_name": ["2024/2025"] * 4,
                 "gas_cost": [1.0, 2.0, 3.0, 4.0],
             }
