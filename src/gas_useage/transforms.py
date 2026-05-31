@@ -171,15 +171,18 @@ def build_last_season_overlay(
 
 
 def previous_season_total_usage(df: pd.DataFrame, last_season_name: str) -> float:
-    """Return the final ``running_sum`` for ``last_season_name`` (or ``0.0``)."""
+    """Return the final ``running_sum`` for ``last_season_name`` (or ``0.0``).
 
-    last_season_df = df[df["season_name"] == last_season_name].copy()
+    Uses ``.max()`` because ``running_sum`` is monotonic within a season and is
+    therefore independent of Supabase row order (which is not guaranteed).
+    """
+
+    last_season_df = df[df["season_name"] == last_season_name]
 
     if last_season_df.empty or "running_sum" not in last_season_df.columns:
         return 0.0
 
-    last_row = last_season_df.iloc[-1]
-    return float(last_row["running_sum"])
+    return float(last_season_df["running_sum"].max())
 
 
 def previous_season_avg_usage_to_date(
@@ -206,6 +209,8 @@ def previous_season_avg_usage_to_date(
 
     days_into_current_season = calculate_time_elapsed_in_season(current_season_name)
     last_df = last_df[last_df["days_into_season"] >= days_into_current_season]
+    if last_df.empty:
+        return 0.0
     last_df = last_df.sort_values(by="days_into_season", ascending=False).tail(1)
 
     gas_usage = last_df["running_sum"].max()

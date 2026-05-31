@@ -63,6 +63,25 @@ class TestPreviousSeasonTotalUsage:
         # THEN we get that row's running_sum
         assert previous_season_total_usage(df, "2023/2024") == 42.5
 
+    def test_independent_of_row_order(self) -> None:
+        # GIVEN season rows in a non-chronological / shuffled order
+        # (Supabase does not guarantee row order, so ``.iloc[-1]`` would be unsafe.)
+        df = pd.DataFrame(
+            {
+                "datetime": [
+                    "2024-06-15",  # chronologically last but placed first
+                    "2023-07-15",
+                    "2024-03-01",
+                    "2023-10-15",
+                ],
+                "season_name": ["2023/2024"] * 4,
+                "running_sum": [300.0, 5.0, 180.0, 50.0],
+            }
+        )
+        # WHEN we ask for the previous-season total
+        # THEN we still get the maximum running_sum regardless of physical order
+        assert previous_season_total_usage(df, "2023/2024") == 300.0
+
 
 class TestPreviousSeasonAvgUsageToDate:
     def test_typical_mid_season_returns_positive_average(
@@ -101,6 +120,25 @@ class TestPreviousSeasonAvgUsageToDate:
         # WHEN we ask for the avg
         avg = previous_season_avg_usage_to_date(df, "2023/2024", "2024/2025")
         # THEN the div-by-zero guard returns 0.0 (365 - 365 = 0)
+        assert avg == 0.0
+
+    def test_returns_zero_when_filter_empties_frame(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # GIVEN last season only has rows EARLIER in the season than today's
+        # day-of-season offset, so the ``days_into_season >= today`` filter
+        # drops every row.
+        df = pd.DataFrame(
+            {
+                # 2023-08-15 is ~45 days into the 2023/2024 season.
+                "datetime": ["2023-08-15T00:00:00"],
+                "season_name": ["2023/2024"],
+                "running_sum": [20.0],
+            }
+        )
+        # Today is well past day 45 of the 2024/2025 season -> filter empties.
+        _freeze_seasons_clock(monkeypatch, 2025, 4, 1)
+        # WHEN we ask for the avg
+        avg = previous_season_avg_usage_to_date(df, "2023/2024", "2024/2025")
+        # THEN we get 0.0 (not NaN from an empty ``.max()``)
         assert avg == 0.0
 
     def test_handles_tz_aware_datetime(self, monkeypatch: pytest.MonkeyPatch) -> None:

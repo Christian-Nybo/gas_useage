@@ -62,12 +62,20 @@ and common secret-bearing files (`.env`, etc.).
 gas_useage/
 ├── src/gas_useage/
 │   ├── __init__.py
-│   ├── app.py           # Streamlit entry point + UI/business logic
-│   └── db.py            # Supabase client wrapper (Sbase)
-├── pyproject.toml       # project metadata, deps, ruff config
-├── uv.lock              # pinned resolution (commit this)
+│   ├── app.py              # Streamlit entry point + UI wiring
+│   ├── charts.py           # Altair chart builders (usage, cost)
+│   ├── data.py             # Cached data accessors / write helpers
+│   ├── db.py               # Supabase client wrapper (Sbase)
+│   ├── seasons.py          # Season parsing + day-of-season math
+│   ├── settings.py         # Pydantic settings (tariffs, etc.)
+│   └── transforms.py       # Pure pandas transforms used by the dashboard
+├── tests/                  # pytest suite (unit tests for transforms/seasons/db)
+├── .github/workflows/      # CI pipeline (ruff + pytest + coverage)
+├── .pre-commit-config.yaml # ruff lint/format pre-commit hooks
+├── pyproject.toml          # project metadata, deps, ruff config
+├── uv.lock                 # pinned resolution (commit this)
 ├── .gitignore
-├── AGENTS.md            # AI-agent guidance (dual-audience hub)
+├── AGENTS.md               # AI-agent guidance (dual-audience hub)
 └── README.md
 ```
 
