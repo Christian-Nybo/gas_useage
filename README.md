@@ -70,3 +70,47 @@ gas_useage/
 ├── AGENTS.md            # AI-agent guidance (dual-audience hub)
 └── README.md
 ```
+
+## Deployment
+
+**Target:** [Streamlit Community Cloud](https://share.streamlit.io) — zero infra, GitHub-native auto-deploy, free for public repos, and native support for `st.secrets` (so the existing Supabase client wrapper works as-is).
+
+**Public URL:** `https://<app-name>.streamlit.app` *(owner to fill in after the first deploy)*
+
+### One-time setup (manual, performed by the repo owner)
+
+These steps are UI-driven and cannot be automated from this repository:
+
+1. Sign in at <https://share.streamlit.io> with the GitHub account that owns the repo.
+2. Click **New app** and select:
+   - **Repository:** `Christian-Nybo/gas_useage`
+   - **Branch:** `main` (production branch — `development` is for CI gating only)
+   - **Main file path:** `src/gas_useage/app.py`
+   - **Python version:** `3.12`
+3. Open **Advanced settings → Secrets** and paste the contents of your local
+   `.streamlit/secrets.toml` (the `[supabase]` and `[supabase_auth]` blocks
+   documented in *Environment / secrets* above). Streamlit Cloud stores these
+   securely; they are never read from the repo.
+4. Click **Deploy**. Subsequent pushes to `main` auto-deploy.
+5. Copy the resulting `*.streamlit.app` URL back into this README, replacing
+   the placeholder above.
+
+### Branch protection (manual follow-up)
+
+CI runs on every push/PR to `main` and `development`, but enforcement of
+"green CI required to merge" must be configured in the GitHub repo settings —
+it cannot be set from code. The repo owner should:
+
+1. Go to **Settings → Branches → Add branch protection rule** in the GitHub UI.
+2. Add a rule for `main` and another for `development`, each requiring:
+   - **Require a pull request before merging**
+   - **Require status checks to pass before merging** → select the `ci` job
+   - **Require branches to be up to date before merging**
+
+Combined with auto-deploy from `main`, the resulting flow is:
+`feature → development (CI) → PR → main (CI + auto-deploy)`.
+
+### Updating secrets
+
+Edit them in the Streamlit Cloud dashboard's **Secrets** panel; the app
+restarts automatically. Do not commit `.streamlit/secrets.toml`.
