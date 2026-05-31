@@ -61,9 +61,7 @@ class Sbase:
         response = self.client.schema(schema).table(table_name).select(query).execute()
         return response.data or []
 
-    def add_record(
-        self, table_name: str, data: dict, schema: str | None = None
-    ) -> list[dict] | None:
+    def add_record(self, table_name: str, data: dict, schema: str | None = None) -> bool:
         """
         Add a record to the specified table.
 
@@ -73,18 +71,19 @@ class Sbase:
             schema: Database schema. Defaults to ``self.default_schema``.
 
         Returns:
-            list[dict] | None: Inserted rows, or ``None`` if validation failed
-            or the insert raised an exception.
+            bool: ``True`` if the insert succeeded, ``False`` if validation
+            failed or the insert raised an exception. On failure the user is
+            notified via ``st.error``.
         """
         if not table_name or not data:
             st.error("Table name and data are required")
-            return None
+            return False
 
         schema = schema or self.default_schema
 
         try:
-            response = self.client.schema(schema).table(table_name).insert(data).execute()
-            return response.data or None
+            self.client.schema(schema).table(table_name).insert(data).execute()
+            return True
         except Exception as e:
             st.error(f"Failed to add record: {e!s}")
-            return None
+            return False

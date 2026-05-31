@@ -193,6 +193,11 @@ def previous_season_avg_usage_to_date(
     Uses last season's usage curve at the same point in the season as today and
     extrapolates over the remaining days. Returns ``0.0`` if last season has no
     data past the current day-of-season offset.
+
+    NOTE: This function is currently unused by ``app.py``, which uses the
+    simpler ``last_year_total_gas / 365`` formula in the Gas Usage in Season
+    metric. Kept here (and tested) so a future change can wire it in once
+    the formula is validated against domain expectations.
     """
 
     last_df = df[df["season_name"] == last_season_name].copy()
