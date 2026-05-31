@@ -29,12 +29,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
       - name: Resolve & install (lockfile smoke test)
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --locked --dev
 
       - name: Lint (ruff check)
         run: uv run ruff check .

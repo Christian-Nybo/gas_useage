@@ -137,7 +137,7 @@ def main() -> None:
         st.metric(
             label="Gas Reading",
             value=f"{filtered_df['gas_reading'].max():,}"
-            if "gas_reading" in filtered_df.columns and not filtered_df.empty
+            if not filtered_df.empty and "gas_reading" in filtered_df.columns
             else "0",
             help="The latest gas reading for the selected season.",
         )
@@ -145,7 +145,9 @@ def main() -> None:
     with col2[1]:
         st.metric(
             label="Gas Usage in Season",
-            value=f"{filtered_df['running_sum'].max():,}" if "running_sum" in df.columns else "0",
+            value=f"{filtered_df['running_sum'].max():,}"
+            if not filtered_df.empty and "running_sum" in filtered_df.columns
+            else "0",
             delta=f"{estimated_usage_to_date}",
             help="The difference between the latest and the first gas reading in the season.",
         )
