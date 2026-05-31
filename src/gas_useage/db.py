@@ -1,34 +1,41 @@
 # Core Package
+import logging
 
-# 3th Party Packages
+# 3rd Party Packages
 import streamlit as st
 from supabase import Client, create_client
 
 # User Defined Packages
+from gas_useage.settings import SupabaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class Sbase:
     """A wrapper class for Supabase database operations in Streamlit applications."""
 
-    def __init__(self, default_schema: str = "gas") -> None:
-        self.default_schema = default_schema
-        self.client = self.create_client()
+    def __init__(self, default_schema: str | None = None) -> None:
+        self.default_schema = default_schema or SupabaseSettings().default_schema
+        self.client: Client = self.create_client()
 
     def create_client(self) -> Client:
         """
         Create and authenticate a Supabase client instance.
+
+        Reads Supabase URL/key and user credentials from ``st.secrets`` and
+        signs in with email/password.
 
         Returns:
             supabase.Client: Authenticated Supabase client
         """
 
         # credentials to auth
-        SUPABASE_URL = st.secrets["supabase"]["SUPABASE_URL"]
-        SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
+        SUPABASE_URL: str = st.secrets["supabase"]["SUPABASE_URL"]
+        SUPABASE_KEY: str = st.secrets["supabase"]["SUPABASE_KEY"]
 
         # Sign in user
-        USER_EMAIL = st.secrets["supabase_auth"]["USER_EMAIL"]
-        USER_PASSWORD = st.secrets["supabase_auth"]["USER_PASSWORD"]
+        USER_EMAIL: str = st.secrets["supabase_auth"]["USER_EMAIL"]
+        USER_PASSWORD: str = st.secrets["supabase_auth"]["USER_PASSWORD"]
 
         client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -36,34 +43,38 @@ class Sbase:
 
         return client
 
-    def query(self, table_name, query, schema="gas") -> list | None:
+    def query(self, table_name: str, query: str, schema: str | None = None) -> list[dict]:
         """
         Query the specified table with the given query.
 
         Args:
-            table_name (str): The name of the table
-            query (str): The query to execute
-            schema (str, optional): Database schema. Defaults to "None"
+            table_name: The name of the table.
+            query: The Supabase select expression (e.g. ``"*"``).
+            schema: Database schema. Defaults to ``self.default_schema``.
 
         Returns:
-            list or None: Query results or None if no data/error
+            list[dict]: Query results, or an empty list when the table has no
+            matching rows. Never returns ``None``.
         """
 
+        schema = schema or self.default_schema
         response = self.client.schema(schema).table(table_name).select(query).execute()
+        return response.data or []
 
-        return response.data if response.data else None
-
-    def add_record(self, table_name, data, schema=None) -> list | None:
+    def add_record(
+        self, table_name: str, data: dict, schema: str | None = None
+    ) -> list[dict] | None:
         """
         Add a record to the specified table.
 
         Args:
-            table_name (str): The name of the table
-            data (dict): Data to insert
-            schema (str, optional): Database schema. Defaults to "None"
+            table_name: The name of the table.
+            data: Data to insert.
+            schema: Database schema. Defaults to ``self.default_schema``.
 
         Returns:
-            dict or None: Inserted data or None if operation failed
+            list[dict] | None: Inserted rows, or ``None`` if validation failed
+            or the insert raised an exception.
         """
         if not table_name or not data:
             st.error("Table name and data are required")
@@ -73,7 +84,7 @@ class Sbase:
 
         try:
             response = self.client.schema(schema).table(table_name).insert(data).execute()
-            return response.data if response.data else None
+            return response.data or None
         except Exception as e:
-            st.error(f"Failed to add record: {str(e)}")
+            st.error(f"Failed to add record: {e!s}")
             return None
