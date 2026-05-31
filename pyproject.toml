@@ -34,7 +34,49 @@ ignore = ["E501"]
 quote-style = "double"
 indent-style = "space"
 
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+]
+markers = [
+    "unit: fast, isolated unit tests (default)",
+    "integration: tests that touch external systems",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/gas_useage"]
+omit = [
+    "*/__init__.py",
+    "*/__main__.py",
+    "src/gas_useage/app.py",
+    "src/gas_useage/charts.py",
+    "src/gas_useage/data.py",
+    "src/gas_useage/db.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 55
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
 [dependency-groups]
 dev = [
+    "coverage>=7.14.1",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
     "ruff>=0.6.0",
 ]
