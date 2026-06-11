@@ -30,7 +30,12 @@ def get_db() -> Sbase:
 def get_all_data(table_name: str) -> pd.DataFrame:
     """Fetch all rows from ``table_name`` as a ``DataFrame`` (cached 5 min)."""
     logger.debug("Fetching data from database: %s", table_name)
-    return pd.DataFrame(get_db().query(table_name, "*"))
+    try:
+        return pd.DataFrame(get_db().query(table_name, "*"))
+    except Exception:
+        logger.exception("Failed to fetch data from %s", table_name)
+        st.error("Failed to fetch data from the database. Please try again later.")
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=3600)
