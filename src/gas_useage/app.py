@@ -86,6 +86,9 @@ def add_new_gas_reading(df: pd.DataFrame) -> None:
 def render_cost_chart(prepared_df: pd.DataFrame, tariffs: Tariffs) -> None:
     """Render the gas cost chart for the prepared per-season dataframe."""
     prices = load_prices()
+    if prices.empty:
+        st.warning("Gas price data is unavailable. Cost chart cannot be displayed.")
+        return
     result = build_daily_cost_frame(prepared_df, prices, tariffs)
 
     aggregation = st.selectbox("View by", ["Day", "Month", "Total"], index=0)
