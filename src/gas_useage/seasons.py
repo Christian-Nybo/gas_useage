@@ -25,7 +25,9 @@ def parse_season(season: str) -> tuple[str, str]:
     parts = season.split("/")
     if len(parts) != 2:
         raise ValueError(f"Invalid season format: {season!r}")
-    start, end = parts
+    start, end = parts[0].strip(), parts[1].strip()
+    if not start or not end:
+        raise ValueError(f"Invalid season format: {season!r}")
     int(start)
     int(end)
     return start, end
