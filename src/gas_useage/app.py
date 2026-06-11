@@ -91,7 +91,7 @@ def check_password() -> bool:
     st.sidebar.subheader("Owner Login")
     entered = st.sidebar.text_input("Password", type="password", key="password_input")
     if st.sidebar.button("Login", key="login_btn"):
-        if entered == expected:
+        if entered.strip() == expected.strip():
             st.session_state["authenticated"] = True
             st.session_state["login_attempts"] = 0
             st.rerun()
