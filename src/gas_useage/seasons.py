@@ -16,6 +16,21 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def parse_season(season: str) -> tuple[str, str]:
+    """Parse and validate a season string of the form 'YYYY/YYYY'.
+
+    Raises ``ValueError`` if the string does not have exactly two
+    slash-separated numeric parts.
+    """
+    parts = season.split("/")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid season format: {season!r}")
+    start, end = parts
+    int(start)
+    int(end)
+    return start, end
+
+
 def get_seasons(df: pd.DataFrame) -> list[str]:
     """Return the unique season names in ``df`` sorted descending.
 
@@ -36,7 +51,13 @@ def calculate_time_left_in_season(season: str) -> int:
     The value is clamped to ``0`` for seasons that have already ended.
     """
 
-    seasons_end_date = f"{season.split('/')[1]}-06-30"
+    try:
+        _, end = parse_season(season)
+    except ValueError:
+        logger.warning("Invalid season format: %r", season)
+        return 0
+
+    seasons_end_date = f"{end}-06-30"
 
     days_left_in_season = (datetime.strptime(seasons_end_date, "%Y-%m-%d") - datetime.now()).days
 
@@ -52,7 +73,13 @@ def calculate_time_elapsed_in_season(season: str) -> int:
     The value is clamped to ``365`` for seasons that have already ended.
     """
 
-    seasons_start_date = f"{season.split('/')[0]}-07-01"
+    try:
+        start, _ = parse_season(season)
+    except ValueError:
+        logger.warning("Invalid season format: %r", season)
+        return 0
+
+    seasons_start_date = f"{start}-07-01"
 
     days_elapsed_in_season = (
         datetime.now() - datetime.strptime(seasons_start_date, "%Y-%m-%d")
