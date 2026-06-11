@@ -60,6 +60,7 @@ def get_season_filter(df: pd.DataFrame) -> tuple[str, str]:
         last_year_season = f"{int(start_s) - 1}/{int(end_s) - 1}"
     except ValueError:
         logger.warning("Invalid season format: %r", current_season_filter)
+        st.sidebar.warning("Season format is invalid — previous-season comparison unavailable.")
         last_year_season = ""
 
     return current_season_filter, last_year_season
