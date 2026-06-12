@@ -227,9 +227,7 @@ class TestBuildLastSeasonOverlayInvalidSeason:
     def test_invalid_last_season_returns_empty_dataframe_with_correct_columns(self) -> None:
         # GIVEN a frame whose rows use the malformed season name (so the filter
         # finds them and the ValueError branch inside the function is reached)
-        df = pd.DataFrame(
-            [make_gas_row(datetime="2023-07-15", season_name="bad", running_sum=5.0)]
-        )
+        df = pd.DataFrame([make_gas_row(datetime="2023-07-15", season_name="bad", running_sum=5.0)])
         # WHEN we call with that malformed last_season
         out = build_last_season_overlay(df, "bad", "2024/2025")
         # THEN parse_season raises and we get an empty frame with correct columns, not a crash
