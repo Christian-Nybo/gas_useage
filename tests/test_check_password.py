@@ -17,7 +17,9 @@ import streamlit as st
 from gas_useage.app import check_password
 
 
-def _make_sidebar(*, password: str = "", login_clicked: bool = False, logout_clicked: bool = False) -> MagicMock:
+def _make_sidebar(
+    *, password: str = "", login_clicked: bool = False, logout_clicked: bool = False
+) -> MagicMock:
     """Return a sidebar mock with controllable text_input and button results."""
     sidebar = MagicMock()
     sidebar.text_input.return_value = password
@@ -45,7 +47,9 @@ def state() -> dict:
 
 
 class TestCheckPasswordFailsClosed:
-    def test_missing_auth_section_returns_false(self, state: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_missing_auth_section_returns_false(
+        self, state: dict, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # GIVEN st.secrets has no [auth] section
         monkeypatch.setattr(st, "session_state", state)
         monkeypatch.setattr(st, "sidebar", _make_sidebar())
@@ -114,9 +118,7 @@ class TestCheckPasswordLogin:
     ) -> None:
         # GIVEN the user pastes the password with surrounding spaces
         monkeypatch.setattr(st, "session_state", state)
-        monkeypatch.setattr(
-            st, "sidebar", _make_sidebar(login_clicked=True, password="  secret  ")
-        )
+        monkeypatch.setattr(st, "sidebar", _make_sidebar(login_clicked=True, password="  secret  "))
         monkeypatch.setattr(st, "secrets", {"auth": {"password": "secret"}})
         monkeypatch.setattr(st, "rerun", lambda: None)
 
@@ -154,9 +156,7 @@ class TestCheckPasswordLockout:
 
         for expected_count in range(1, 3):
             monkeypatch.setattr(st, "session_state", state)
-            monkeypatch.setattr(
-                st, "sidebar", _make_sidebar(login_clicked=True, password="wrong")
-            )
+            monkeypatch.setattr(st, "sidebar", _make_sidebar(login_clicked=True, password="wrong"))
             check_password()
             assert state["login_attempts"] == expected_count
 
@@ -167,9 +167,7 @@ class TestCheckPasswordLockout:
         state["authenticated"] = False
         state["login_attempts"] = 3
         monkeypatch.setattr(st, "session_state", state)
-        monkeypatch.setattr(
-            st, "sidebar", _make_sidebar(login_clicked=True, password="correct")
-        )
+        monkeypatch.setattr(st, "sidebar", _make_sidebar(login_clicked=True, password="correct"))
         monkeypatch.setattr(st, "secrets", {"auth": {"password": "correct"}})
         monkeypatch.setattr(st, "rerun", lambda: None)
 
