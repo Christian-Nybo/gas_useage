@@ -18,7 +18,9 @@ from gas_useage.data import get_all_data, load_prices
 
 
 class TestGetAllDataExceptionPath:
-    def test_returns_empty_dataframe_when_query_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_empty_dataframe_when_query_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # GIVEN the DB client raises on query
         mock_db = MagicMock()
         mock_db.query.side_effect = RuntimeError("connection refused")
@@ -46,7 +48,9 @@ class TestGetAllDataExceptionPath:
 
 
 class TestLoadPricesExceptionPath:
-    def test_returns_empty_dataframe_when_query_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_empty_dataframe_when_query_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # GIVEN the DB client raises on query
         mock_db = MagicMock()
         mock_db.query.side_effect = ConnectionError("service unavailable")
