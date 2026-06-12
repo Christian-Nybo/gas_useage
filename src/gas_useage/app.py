@@ -20,6 +20,7 @@ from gas_useage.seasons import (
     calculate_time_elapsed_in_season,
     calculate_time_left_in_season,
     get_seasons,
+    parse_season,
 )
 from gas_useage.settings import Tariffs
 from gas_useage.transforms import (
@@ -54,8 +55,13 @@ def get_season_filter(df: pd.DataFrame) -> tuple[str, str]:
     )
 
     # Derive previous season from the selected one (e.g. "2025/2026" -> "2024/2025").
-    start, end = (int(p) for p in current_season_filter.split("/"))
-    last_year_season = f"{start - 1}/{end - 1}"
+    try:
+        start_s, end_s = parse_season(current_season_filter)
+        last_year_season = f"{int(start_s) - 1}/{int(end_s) - 1}"
+    except ValueError:
+        logger.warning("Invalid season format: %r", current_season_filter)
+        st.sidebar.warning("Season format is invalid — previous-season comparison unavailable.")
+        last_year_season = ""
 
     return current_season_filter, last_year_season
 
