@@ -66,6 +66,51 @@ def get_season_filter(df: pd.DataFrame) -> tuple[str, str]:
     return current_season_filter, last_year_season
 
 
+def check_password() -> bool:
+    """Return True if the user is authenticated via st.secrets[auth][password].
+
+    Shows a login form for unauthenticated visitors and a Logout button for
+    authenticated ones. Fails closed if the secret is missing so the form
+    stays hidden and the public dashboard continues to work.
+    """
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+    if "login_attempts" not in st.session_state:
+        st.session_state["login_attempts"] = 0
+
+    if st.session_state["authenticated"]:
+        if st.sidebar.button("Logout", key="logout_btn"):
+            st.session_state["authenticated"] = False
+            st.rerun()
+        return True
+
+    if st.session_state["login_attempts"] >= 3:
+        st.sidebar.error("Too many failed attempts. Refresh the page to try again.")
+        return False
+
+    try:
+        expected = st.secrets["auth"]["password"]
+    except (KeyError, FileNotFoundError):
+        logger.warning("st.secrets missing [auth].password — write form hidden.")
+        return False
+
+    st.sidebar.subheader("Owner Login")
+    entered = st.sidebar.text_input("Password", type="password", key="password_input")
+    if st.sidebar.button("Login", key="login_btn"):
+        if entered.strip() == expected.strip():
+            st.session_state["authenticated"] = True
+            st.session_state["login_attempts"] = 0
+            st.rerun()
+        else:
+            st.session_state["login_attempts"] += 1
+            remaining = 3 - st.session_state["login_attempts"]
+            if remaining > 0:
+                st.sidebar.error(f"Incorrect password. {remaining} attempt(s) remaining.")
+            else:
+                st.sidebar.error("Too many failed attempts. Refresh the page to try again.")
+    return False
+
+
 def add_new_gas_reading(df: pd.DataFrame) -> None:
     """Render the sidebar form for submitting a new gas reading."""
     st.sidebar.subheader("New Gas Reading")
@@ -116,7 +161,8 @@ def main() -> None:
 
     # Sidebar
     seasons_filter, last_seasons_filter = get_season_filter(df)
-    add_new_gas_reading(df)
+    if check_password():
+        add_new_gas_reading(df)
 
     # Filter the DataFrame based on the selected season and prep once.
     filtered_df = df[df["season_name"] == seasons_filter]
