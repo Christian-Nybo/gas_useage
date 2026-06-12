@@ -12,7 +12,7 @@ import logging
 import pandas as pd
 
 # User Defined Packages
-from gas_useage.seasons import calculate_time_elapsed_in_season
+from gas_useage.seasons import calculate_time_elapsed_in_season, parse_season
 from gas_useage.settings import Tariffs
 
 logger = logging.getLogger(__name__)
@@ -162,8 +162,15 @@ def build_last_season_overlay(
     if last_df["datetime"].dt.tz is not None:
         last_df["datetime"] = last_df["datetime"].dt.tz_localize(None)
 
-    last_start = pd.to_datetime(f"{last_season.split('/')[0]}-07-01")
-    current_start = pd.to_datetime(f"{current_season.split('/')[0]}-07-01")
+    try:
+        last_start_year, _ = parse_season(last_season)
+        current_start_year, _ = parse_season(current_season)
+    except ValueError:
+        logger.warning("Invalid season format: last=%r current=%r", last_season, current_season)
+        return pd.DataFrame(columns=["datetime", "running_sum"])
+
+    last_start = pd.to_datetime(f"{last_start_year}-07-01")
+    current_start = pd.to_datetime(f"{current_start_year}-07-01")
     last_df["days_into_season"] = (last_df["datetime"] - last_start).dt.days
     last_df["datetime"] = current_start + pd.to_timedelta(last_df["days_into_season"], unit="D")
 
@@ -208,8 +215,14 @@ def previous_season_avg_usage_to_date(
     if last_df["datetime"].dt.tz is not None:
         last_df["datetime"] = last_df["datetime"].dt.tz_localize(None)
 
+    try:
+        last_start_year, _ = parse_season(last_season_name)
+    except ValueError:
+        logger.warning("Invalid season format: %r", last_season_name)
+        return 0.0
+
     last_df["days_into_season"] = (
-        last_df["datetime"] - pd.to_datetime(f"{last_season_name.split('/')[0]}-07-01")
+        last_df["datetime"] - pd.to_datetime(f"{last_start_year}-07-01")
     ).dt.days
 
     days_into_current_season = calculate_time_elapsed_in_season(current_season_name)

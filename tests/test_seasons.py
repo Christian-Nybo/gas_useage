@@ -18,6 +18,7 @@ from gas_useage.seasons import (
     calculate_time_elapsed_in_season,
     calculate_time_left_in_season,
     get_seasons,
+    parse_season,
 )
 
 
@@ -124,3 +125,66 @@ class TestGetSeasons:
         # WHEN we ask for the seasons
         # THEN we get an empty list, not an error
         assert get_seasons(df) == []
+
+
+class TestParseSeason:
+    def test_valid_season_returns_start_and_end(self) -> None:
+        assert parse_season("2024/2025") == ("2024", "2025")
+
+    def test_strips_whitespace_from_parts(self) -> None:
+        assert parse_season(" 2024 / 2025 ") == ("2024", "2025")
+
+    def test_no_slash_raises(self) -> None:
+        with pytest.raises(ValueError, match="Invalid season format"):
+            parse_season("2024")
+
+    def test_two_slashes_raises(self) -> None:
+        with pytest.raises(ValueError, match="Invalid season format"):
+            parse_season("2024/2025/2026")
+
+    def test_non_numeric_start_raises(self) -> None:
+        with pytest.raises(ValueError):
+            parse_season("abc/2025")
+
+    def test_non_numeric_end_raises(self) -> None:
+        with pytest.raises(ValueError):
+            parse_season("2024/def")
+
+    def test_leading_slash_raises(self) -> None:
+        with pytest.raises(ValueError, match="Invalid season format"):
+            parse_season("/2025")
+
+    def test_trailing_slash_raises(self) -> None:
+        with pytest.raises(ValueError, match="Invalid season format"):
+            parse_season("2024/")
+
+    def test_empty_string_raises(self) -> None:
+        with pytest.raises(ValueError, match="Invalid season format"):
+            parse_season("")
+
+
+class TestCalculateTimeLeftInSeasonInvalidInput:
+    def test_malformed_season_returns_zero(self) -> None:
+        assert calculate_time_left_in_season("bad-input") == 0
+
+    def test_empty_string_returns_zero(self) -> None:
+        assert calculate_time_left_in_season("") == 0
+
+
+class TestCalculateTimeElapsedInSeasonInvalidInput:
+    def test_malformed_season_returns_zero(self) -> None:
+        assert calculate_time_elapsed_in_season("bad-input") == 0
+
+    def test_empty_string_returns_zero(self) -> None:
+        assert calculate_time_elapsed_in_season("") == 0
+
+    def test_zero_sentinel_is_shared_by_first_day_and_invalid_input(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # calculate_time_elapsed_in_season uses 0 as the sentinel for BOTH
+        # "first day of a valid season" and "invalid season string".
+        # This test documents that ambiguity so a future change introducing a
+        # distinct error sentinel does not accidentally break the first-day case.
+        _freeze_seasons_clock(monkeypatch, 2024, 7, 1)
+        assert calculate_time_elapsed_in_season("2024/2025") == 0  # valid first day
+        assert calculate_time_elapsed_in_season("invalid") == 0  # malformed input
