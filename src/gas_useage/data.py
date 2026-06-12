@@ -30,13 +30,21 @@ def get_db() -> Sbase:
 def get_all_data(table_name: str) -> pd.DataFrame:
     """Fetch all rows from ``table_name`` as a ``DataFrame`` (cached 5 min)."""
     logger.debug("Fetching data from database: %s", table_name)
-    return pd.DataFrame(get_db().query(table_name, "*"))
+    try:
+        return pd.DataFrame(get_db().query(table_name, "*"))
+    except Exception:
+        logger.exception("Failed to fetch data from %s", table_name)
+        return pd.DataFrame()
 
 
 @st.cache_data(ttl=3600)
 def load_prices() -> pd.DataFrame:
     """Load the gas price history as a ``DataFrame`` (cached 1 hour)."""
-    return pd.DataFrame(get_db().query("gas_prices", "*"))
+    try:
+        return pd.DataFrame(get_db().query("gas_prices", "*"))
+    except Exception:
+        logger.exception("Failed to fetch gas prices")
+        return pd.DataFrame()
 
 
 def add_gas_reading(reading: int) -> bool:

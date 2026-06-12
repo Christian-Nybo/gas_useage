@@ -59,7 +59,6 @@ omit = [
     "*/__main__.py",
     "src/gas_useage/app.py",
     "src/gas_useage/charts.py",
-    "src/gas_useage/data.py",
     "src/gas_useage/db.py",
 ]
 
