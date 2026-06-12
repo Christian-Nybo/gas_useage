@@ -40,21 +40,38 @@ The Streamlit dev server opens at http://localhost:8501 by default.
 
 ## Environment / secrets
 
-Streamlit reads credentials from `.streamlit/secrets.toml` (gitignored). Create
-the file at the repo root with the following sections:
+Streamlit reads credentials from `.streamlit/secrets.toml` (gitignored). Copy
+`.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill in real
+values:
 
 ```toml
 [supabase]
 SUPABASE_URL = "https://<project-ref>.supabase.co"
-SUPABASE_KEY = "<anon-or-service-role-key>"
+SUPABASE_KEY = "<anon-public-key>"
 
 [supabase_auth]
-USER_EMAIL = "<account-email>"
-USER_PASSWORD = "<account-password>"
+USER_EMAIL = "<service-account-email>"
+USER_PASSWORD = "<service-account-password>"
+
+[auth]
+password = "<your-strong-dashboard-password>"
 ```
+
+| Section | Purpose |
+|---------|---------|
+| `[supabase]` | Supabase project URL and anon/public API key (from your project's API settings) |
+| `[supabase_auth]` | Supabase user account the app signs in as to query and write data |
+| `[auth]` | Password for the owner login form in the sidebar (gates the "add reading" input) |
 
 Never commit this file. The `.gitignore` excludes `.streamlit/secrets.toml`
 and common secret-bearing files (`.env`, etc.).
+
+### Owner login
+
+The sidebar shows a **Password** field and **Login** button. Enter the value
+set in `[auth] password` to unlock the gas reading input. After three failed
+attempts the form is locked until the page is refreshed. Click **Logout** to
+end the authenticated session.
 
 ## Project structure
 
@@ -96,9 +113,9 @@ These steps are UI-driven and cannot be automated from this repository:
    - **Main file path:** `src/gas_useage/app.py`
    - **Python version:** `3.12`
 3. Open **Advanced settings → Secrets** and paste the contents of your local
-   `.streamlit/secrets.toml` (the `[supabase]` and `[supabase_auth]` blocks
-   documented in *Environment / secrets* above). Streamlit Cloud stores these
-   securely; they are never read from the repo.
+   `.streamlit/secrets.toml` (all three blocks: `[supabase]`, `[supabase_auth]`,
+   and `[auth]` — documented in *Environment / secrets* above). Streamlit Cloud
+   stores these securely; they are never read from the repo.
 4. Click **Deploy**. Subsequent pushes to `main` auto-deploy.
 5. Copy the resulting `*.streamlit.app` URL back into this README, replacing
    the placeholder above.
