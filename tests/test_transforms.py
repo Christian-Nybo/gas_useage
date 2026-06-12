@@ -20,6 +20,7 @@ from gas_useage.transforms import (
     build_daily_cost_frame,
     build_last_season_overlay,
     prep_dataframe,
+    previous_season_avg_usage_to_date,
 )
 
 
@@ -220,3 +221,40 @@ class TestAggregateCost:
         assert x_field == "season_name:N"
         assert len(grouped) == 1
         assert grouped["gas_cost"].iloc[0] == pytest.approx(10.0)
+
+
+class TestBuildLastSeasonOverlayInvalidSeason:
+    def test_invalid_last_season_returns_empty_dataframe_with_correct_columns(self) -> None:
+        # GIVEN a frame whose rows use the malformed season name (so the filter
+        # finds them and the ValueError branch inside the function is reached)
+        df = pd.DataFrame(
+            [make_gas_row(datetime="2023-07-15", season_name="bad", running_sum=5.0)]
+        )
+        # WHEN we call with that malformed last_season
+        out = build_last_season_overlay(df, "bad", "2024/2025")
+        # THEN parse_season raises and we get an empty frame with correct columns, not a crash
+        assert out.empty
+        assert list(out.columns) == ["datetime", "running_sum"]
+
+    def test_invalid_current_season_returns_empty_dataframe_with_correct_columns(self) -> None:
+        # GIVEN a frame with valid data but an invalid current_season string
+        df = pd.DataFrame(
+            [make_gas_row(datetime="2023-07-15", season_name="2023/2024", running_sum=5.0)]
+        )
+        # WHEN we call with a malformed current_season
+        out = build_last_season_overlay(df, "2023/2024", "bad")
+        # THEN we get an empty frame with the two expected columns, not a crash
+        assert out.empty
+        assert list(out.columns) == ["datetime", "running_sum"]
+
+
+class TestPreviousSeasonAvgUsageToDateInvalidSeason:
+    def test_invalid_season_name_returns_zero(self) -> None:
+        # GIVEN a frame with valid data but a malformed last_season_name
+        df = pd.DataFrame(
+            [make_gas_row(datetime="2023-07-15", season_name="2023/2024", running_sum=100.0)]
+        )
+        # WHEN we call with an invalid season string
+        result = previous_season_avg_usage_to_date(df, "not-a-season", "2024/2025")
+        # THEN it returns 0.0 without raising
+        assert result == 0.0

@@ -177,3 +177,14 @@ class TestCalculateTimeElapsedInSeasonInvalidInput:
 
     def test_empty_string_returns_zero(self) -> None:
         assert calculate_time_elapsed_in_season("") == 0
+
+    def test_zero_sentinel_is_shared_by_first_day_and_invalid_input(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # calculate_time_elapsed_in_season uses 0 as the sentinel for BOTH
+        # "first day of a valid season" and "invalid season string".
+        # This test documents that ambiguity so a future change introducing a
+        # distinct error sentinel does not accidentally break the first-day case.
+        _freeze_seasons_clock(monkeypatch, 2024, 7, 1)
+        assert calculate_time_elapsed_in_season("2024/2025") == 0  # valid first day
+        assert calculate_time_elapsed_in_season("invalid") == 0  # malformed input
