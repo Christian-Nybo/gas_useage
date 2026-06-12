@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 
 # 3rd Party Packages
 import pandas as pd
-import pytest
 
 # User Defined Packages
 from gas_useage.settings import Tariffs
@@ -28,6 +27,7 @@ class TestRenderCostChartEmptyPricesGuard:
             patch("streamlit.warning"),
         ):
             from gas_useage.app import render_cost_chart
+
             render_cost_chart(pd.DataFrame(), Tariffs())
 
         mock_bdc.assert_not_called()
@@ -35,11 +35,13 @@ class TestRenderCostChartEmptyPricesGuard:
     def test_calls_build_daily_cost_frame_when_prices_are_available(self) -> None:
         # GIVEN load_prices() returns non-empty price data
         prices = pd.DataFrame({"date": ["2024-07-15"], "unit_price": [4.2]})
-        cost_result = pd.DataFrame({
-            "date": pd.to_datetime(["2024-08-01"]),
-            "gas_cost": [10.0],
-            "season_name": ["2024/2025"],
-        })
+        cost_result = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-08-01"]),
+                "gas_cost": [10.0],
+                "season_name": ["2024/2025"],
+            }
+        )
 
         with (
             patch("gas_useage.app.load_prices", return_value=prices),
@@ -50,6 +52,7 @@ class TestRenderCostChartEmptyPricesGuard:
             patch("streamlit.altair_chart"),
         ):
             from gas_useage.app import render_cost_chart
+
             render_cost_chart(pd.DataFrame(), Tariffs())
 
         mock_bdc.assert_called_once()
