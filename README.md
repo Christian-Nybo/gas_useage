@@ -139,3 +139,19 @@ Combined with auto-deploy from `main`, the resulting flow is:
 
 Edit them in the Streamlit Cloud dashboard's **Secrets** panel; the app
 restarts automatically. Do not commit `.streamlit/secrets.toml`.
+
+
+## Maintenance
+
+### Add a new season
+
+Format of the season are `YYYY/YYYY` where the first `YYYY` are the current year and the following `YYYY` are next year.
+A new season has to be set beforehand (Before the `XXXX-07-01`)
+
+1. Insert a new row with that in the 'gas_season' table. <br>
+   Add the following into the database row: 
+   1. season_name: `YYYY/YYYY`
+   2. start: The last day of the old year at: 00:00:00
+   3. end: The last day of the new year at: 23:59:59
+2. Reload the Streamlit app.
+3. Add a gas reading that will display the new year. 
