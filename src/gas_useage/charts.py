@@ -48,7 +48,9 @@ def build_usage_chart(
         )
     )
 
-    layers: list[alt.Chart] = [bar, line]
+    # Running-sum lines are layered together so they share one right-hand y scale/axis;
+    # only the bar layer gets an independent (left) scale.
+    sum_layers: list[alt.Chart] = [line]
     if full_df is not None and current_season and last_season and last_season != current_season:
         overlay = build_last_season_overlay(full_df, last_season, current_season)
         if not overlay.empty:
@@ -60,10 +62,10 @@ def build_usage_chart(
                     y=alt.Y("running_sum:Q", axis=alt.Axis(title="Running Sum", orient="right")),
                 )
             )
-            layers.append(line_last)
+            sum_layers.append(line_last)
 
     return (
-        alt.layer(*layers)
+        alt.layer(bar, alt.layer(*sum_layers))
         .resolve_scale(y="independent")
         .properties(
             width=700,
